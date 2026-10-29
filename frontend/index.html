@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pasarela de Pagos | Grupo 2</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="/js/payment-result.js" defer></script>
+  <script src="/js/support-contact.js" defer></script>
+  <script src="/js/app.js" defer></script>
+</head>
+<body>
+  <main class="checkout">
+    <header class="page-header">
+      <p class="eyebrow">MARKETPLACE · PAGO SEGURO</p>
+      <h1>Finaliza tu compra</h1>
+      <p class="page-description">Revisa tu pedido y elige cómo realizar el pago.</p>
+    </header>
+    <section class="card" aria-labelledby="summary-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">TU PEDIDO</p>
+          <h2 id="summary-title">Resumen de tu compra</h2>
+        </div>
+        <span class="demo-label">Demostración</span>
+      </div>
+      <p id="summary-status" role="status" aria-live="polite">Cargando resumen…</p>
+      <dl id="purchase-summary" class="purchase-summary" hidden>
+        <div class="summary-row"><dt>Orden</dt><dd id="order-id"></dd></div>
+        <div class="summary-row"><dt>Comercio</dt><dd id="recipient"></dd></div>
+        <div class="summary-row product-row"><dt>Producto</dt><dd id="product"></dd></div>
+        <div class="summary-row"><dt>Cantidad</dt><dd id="quantity"></dd></div>
+        <div class="summary-row amounts-start"><dt>Subtotal</dt><dd id="subtotal-amount"></dd></div>
+        <div class="summary-row"><dt>Envío</dt><dd id="shipping-amount"></dd></div>
+        <div class="summary-row total-row"><dt>Total a pagar</dt><dd id="total-amount"></dd></div>
+      </dl>
+    </section>
+    <section class="card reservation-card" aria-labelledby="reservation-title">
+      <p class="section-kicker">RESERVA DE DEMOSTRACIÓN</p>
+      <h2 id="reservation-title">Reservar con anticipo</h2>
+      <p class="section-description">
+        Simula un abono parcial para solicitar la reserva. No bloquea inventario real.
+      </p>
+      <button id="open-reservation" type="button" class="secondary-button">
+        Ver reserva con anticipo
+      </button>
+      <div id="reservation-panel" class="reservation-panel" hidden>
+        <p id="reservation-status" role="status" aria-live="polite"></p>
+        <dl id="reservation-quote" class="operation-details" hidden>
+          <div><dt>Producto</dt><dd id="reservation-product"></dd></div>
+          <div><dt>Precio total</dt><dd id="reservation-total"></dd></div>
+          <div><dt>Valor del anticipo</dt><dd id="reservation-advance"></dd></div>
+          <div><dt>Saldo pendiente</dt><dd id="reservation-balance"></dd></div>
+        </dl>
+        <p class="academic-rule">
+          El anticipo es un valor académico de prueba, no una regla oficial del Marketplace.
+        </p>
+        <fieldset id="reservation-methods" hidden>
+          <legend>Método para simular el anticipo</legend>
+          <div class="reservation-method-options">
+            <label class="method-option">
+              <input type="radio" name="reservation-method" value="pse">
+              <span>PSE</span>
+            </label>
+            <label class="method-option">
+              <input type="radio" name="reservation-method" value="qr">
+              <span>Código QR</span>
+            </label>
+          </div>
+        </fieldset>
+        <button id="confirm-reservation" type="button" disabled>Confirmar anticipo</button>
+        <div id="reservation-result" class="payment-result" role="status" aria-live="polite" hidden>
+          <strong id="reservation-result-title"></strong>
+          <span id="reservation-transaction-id"></span>
+        </div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="methods-title">
+      <p class="section-kicker">FORMA DE PAGO</p>
+      <h2 id="methods-title">Selecciona un método de pago</h2>
+      <p class="section-description">Solo puedes elegir una opción para esta compra.</p>
+      <div class="customer-demo">
+        <input id="new-customer-demo" type="checkbox">
+        <div>
+          <label for="new-customer-demo">Simular cliente nuevo</label>
+          <p>Demostración académica: no valida identidad ni historial del comprador.</p>
+        </div>
+      </div>
+      <p id="methods-status" role="status" aria-live="polite">Cargando métodos…</p>
+      <fieldset id="payment-methods" hidden>
+        <legend class="sr-only">Métodos de pago disponibles</legend>
+        <div id="payment-method-options"></div>
+      </fieldset>
+      <p id="selection-status" class="selection-status" aria-live="polite">
+        Ningún método seleccionado.
+      </p>
+      <p id="cod-explanation" class="cod-explanation" hidden>
+        Pagarás el valor del pedido cuando recibas el producto. Esta solicitud quedará
+        pendiente y no significa que el pago ya fue realizado.
+      </p>
+      <div id="pending-payment-review" class="operation-review" hidden>
+        <h3>Revisa la información antes de pagar</h3>
+        <dl class="operation-details">
+          <div><dt>Pedido</dt><dd id="review-order-id"></dd></div>
+          <div><dt>Valor</dt><dd id="review-amount"></dd></div>
+          <div><dt>Método</dt><dd id="review-method"></dd></div>
+          <div><dt>Estado</dt><dd>Pendiente de confirmación</dd></div>
+        </dl>
+        <div class="operation-actions">
+          <button id="change-payment-method" type="button" class="secondary-button">
+            Cambiar método de pago
+          </button>
+          <button id="cancel-operation" type="button" class="cancel-button">
+            Cancelar operación
+          </button>
+        </div>
+        <div id="cancel-confirmation" class="cancel-confirmation" role="alert" hidden>
+          <strong>¿Deseas cancelar esta operación?</strong>
+          <p>No se registrará ningún pago.</p>
+          <div class="operation-actions">
+            <button id="confirm-cancel" type="button" class="cancel-button">Sí, cancelar</button>
+            <button id="continue-payment" type="button" class="secondary-button">
+              Continuar con el pago
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="cancelled-operation" class="cancelled-operation" role="status" hidden>
+        <strong>Operación cancelada.</strong>
+        <span>No se registró ningún pago.</span>
+        <button id="return-to-summary" type="button" class="secondary-button">
+          Volver al resumen
+        </button>
+      </div>
+      <button id="process-payment" type="button" disabled>Realizar pago</button>
+      <div id="payment-result" class="payment-result" role="status" aria-live="polite" hidden>
+        <strong id="payment-result-title"></strong>
+        <span id="payment-transaction-id"></span>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="status-query-title">
+      <p class="section-kicker">CONSULTAR TRANSACCIÓN</p>
+      <h2 id="status-query-title">Consulta la información de tu pago</h2>
+      <p class="section-description">
+        Si cerraste o actualizaste la página, escribe el identificador que recibiste.
+      </p>
+      <form id="payment-status-form" class="status-query-form">
+        <label for="status-transaction-id">Identificador de transacción</label>
+        <div class="status-query-controls">
+          <input
+            id="status-transaction-id"
+            name="transactionId"
+            type="text"
+            maxlength="20"
+            placeholder="TX-000001"
+            autocomplete="off"
+            required
+          >
+          <button type="submit">Consultar transacción</button>
+        </div>
+      </form>
+      <div id="status-query-result" class="payment-result" role="status" aria-live="polite" hidden>
+        <strong id="status-query-title-result"></strong>
+        <span id="status-query-transaction"></span>
+      </div>
+    </section>
+    <section class="card support-card" aria-labelledby="support-title">
+      <p class="section-kicker">AYUDA</p>
+      <h2 id="support-title">¿Necesitas ayuda con tu pago?</h2>
+      <p class="section-description">
+        Aquí encontrarás el contacto de soporte del Marketplace cuando sea confirmado.
+      </p>
+      <p id="support-contact-status" class="support-contact-status pending" role="status">
+        Número de soporte pendiente por definir.
+      </p>
+    </section>
+    <noscript>Activa JavaScript para consultar el resumen y los métodos disponibles.</noscript>
+  </main>
+</body>
+</html>

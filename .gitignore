@@ -1,0 +1,46 @@
+# Dependencias instaladas localmente
+node_modules/
+
+# Variables y credenciales locales. El ejemplo público sí se conserva.
+.env
+.env.*
+!.env.example
+
+# Resultados de pruebas, logs y archivos temporales
+coverage/
+.nyc_output/
+*.log
+npm-debug.log*
+logs/
+run/
+*.pid
+tmp/
+temp/
+.tmp/
+.cache/
+*.tmp
+*.temp
+
+# Bases locales, exportaciones y respaldos
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.zip
+*.7z
+*.tar
+*.tar.gz
+pgdata/
+postgres-data/
+
+# Runtimes y copias portátiles: se distribuyen aparte del código fuente
+runtime/
+MARKETPLACE_GRUPO_2_PORTATIL/
+RESPALDOS_PASARELA/
+
+# Configuración local del sistema o editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,21 @@
+{
+  "name": "marketplace-payments-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Grupo 2 - Pasarela de Pagos: Sprints 1, 2 y 3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "db:check": "node scripts/check-db.js",
+    "db:migrate": "node scripts/migrate.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.23.1"
+  }
+}
