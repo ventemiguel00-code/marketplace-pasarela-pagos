@@ -10,7 +10,39 @@ const {
   getPaymentReview,
   saveLastTransactionId,
   getLastTransactionId,
+  getPurchaseChoicePresentation,
+  canChangePurchaseChoice,
 } = require('../../frontend/js/payment-result');
+
+test('mejora visual: pago completo es la alternativa inicial y solo muestra su formulario', () => {
+  assert.deepEqual(getPurchaseChoicePresentation(), {
+    purchaseType: 'full',
+    fullPaymentHidden: false,
+    reservationHidden: true,
+  });
+});
+
+test('mejora visual: permite alternar entre pago completo y anticipo sin mezclar formularios', () => {
+  assert.deepEqual(getPurchaseChoicePresentation('reservation'), {
+    purchaseType: 'reservation',
+    fullPaymentHidden: true,
+    reservationHidden: false,
+  });
+  assert.deepEqual(getPurchaseChoicePresentation('full'), {
+    purchaseType: 'full',
+    fullPaymentHidden: false,
+    reservationHidden: true,
+  });
+});
+
+test('mejora visual: bloquea el cambio durante operaciones o resultados sin confirmar', () => {
+  assert.equal(canChangePurchaseChoice(), true);
+  assert.equal(canChangePurchaseChoice({ paymentInProgress: true }), false);
+  assert.equal(canChangePurchaseChoice({ reservationInProgress: true }), false);
+  assert.equal(canChangePurchaseChoice({ reservationQuoteLoading: true }), false);
+  assert.equal(canChangePurchaseChoice({ unconfirmedAttempt: true }), false);
+  assert.equal(canChangePurchaseChoice({ reservationUnconfirmedAttempt: true }), false);
+});
 
 test('HU-PG-04: presenta APPROVED como Pago aprobado y conserva transactionId', () => {
   assert.deepEqual(getPaymentResultPresentation('APPROVED', 'TX-100'), {

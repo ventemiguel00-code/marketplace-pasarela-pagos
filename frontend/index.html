@@ -35,7 +35,37 @@
         <div class="summary-row total-row"><dt>Total a pagar</dt><dd id="total-amount"></dd></div>
       </dl>
     </section>
-    <section class="card reservation-card" aria-labelledby="reservation-title">
+    <section class="card purchase-choice-card" aria-labelledby="purchase-choice-title">
+      <p class="section-kicker">TIPO DE COMPRA</p>
+      <h2 id="purchase-choice-title">¿Cómo deseas realizar tu compra?</h2>
+      <p class="section-description">Elige una alternativa para continuar.</p>
+      <fieldset class="purchase-choice-options">
+        <legend class="sr-only">Tipo de compra</legend>
+        <label class="purchase-choice-option selected">
+          <input type="radio" name="purchase-type" value="full" checked>
+          <span>
+            <strong>Pagar el valor completo</strong>
+            <small>Total a pagar: $149.900 COP</small>
+          </span>
+        </label>
+        <label class="purchase-choice-option">
+          <input type="radio" name="purchase-type" value="reservation">
+          <span>
+            <strong>Reservar con un anticipo</strong>
+            <small>Anticipo académico: $50.000 COP</small>
+          </span>
+        </label>
+      </fieldset>
+      <p id="purchase-choice-status" class="selection-status" role="status" aria-live="polite">
+        Seleccionaste pagar el valor completo.
+      </p>
+    </section>
+    <section
+      id="reservation-option-panel"
+      class="card reservation-card purchase-flow-card"
+      aria-labelledby="reservation-title"
+      hidden
+    >
       <p class="section-kicker">RESERVA DE DEMOSTRACIÓN</p>
       <h2 id="reservation-title">Reservar con anticipo</h2>
       <p class="section-description">
@@ -75,7 +105,11 @@
         </div>
       </div>
     </section>
-    <section class="card" aria-labelledby="methods-title">
+    <section
+      id="full-payment-panel"
+      class="card purchase-flow-card"
+      aria-labelledby="methods-title"
+    >
       <p class="section-kicker">FORMA DE PAGO</p>
       <h2 id="methods-title">Selecciona un método de pago</h2>
       <p class="section-description">Solo puedes elegir una opción para esta compra.</p>
@@ -168,10 +202,13 @@
       <p class="section-kicker">AYUDA</p>
       <h2 id="support-title">¿Necesitas ayuda con tu pago?</h2>
       <p class="section-description">
-        Aquí encontrarás el contacto de soporte del Marketplace cuando sea confirmado.
+        Comunícate con el soporte del Marketplace si necesitas orientación con tu pago.
       </p>
-      <p id="support-contact-status" class="support-contact-status pending" role="status">
-        Número de soporte pendiente por definir.
+      <p id="support-contact-status" class="support-contact-status available" role="status">
+        <span class="support-contact-number">Soporte: 3154721757</span>
+        <a class="support-whatsapp-link" href="https://wa.me/573154721757" target="_blank" rel="noopener noreferrer">
+          Contactar por WhatsApp
+        </a>
       </p>
     </section>
     <noscript>Activa JavaScript para consultar el resumen y los métodos disponibles.</noscript>

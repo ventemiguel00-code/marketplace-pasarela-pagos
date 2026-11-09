@@ -10,6 +10,9 @@ let reservationQuote = null;
 let reservationMethodId = null;
 let reservationAttemptKey = null;
 let reservationInProgress = false;
+let reservationQuoteLoading = false;
+let reservationUnconfirmedAttempt = false;
+let purchaseType = 'full';
 
 function createAttemptKey() {
   const randomPart = crypto.randomUUID
@@ -71,9 +74,99 @@ async function loadSummary() {
 
 loadSummary();
 
+function setPurchaseTypeControlsDisabled(disabled) {
+  document.querySelectorAll('input[name="purchase-type"]').forEach((input) => {
+    input.disabled = disabled;
+  });
+}
+
+function canChangePurchaseType() {
+  return window.PaymentResult.canChangePurchaseChoice({
+    paymentInProgress,
+    reservationInProgress,
+    reservationQuoteLoading,
+    unconfirmedAttempt,
+    reservationUnconfirmedAttempt,
+  });
+}
+
+function renderPurchaseType() {
+  const presentation = window.PaymentResult.getPurchaseChoicePresentation(purchaseType);
+  document.getElementById('full-payment-panel').hidden = presentation.fullPaymentHidden;
+  document.getElementById('reservation-option-panel').hidden = presentation.reservationHidden;
+  document.querySelectorAll('input[name="purchase-type"]').forEach((input) => {
+    input.checked = input.value === presentation.purchaseType;
+    input.closest('.purchase-choice-option')?.classList.toggle('selected', input.checked);
+  });
+  document.getElementById('purchase-choice-status').textContent = purchaseType === 'full'
+    ? 'Seleccionaste pagar el valor completo.'
+    : 'Seleccionaste reservar con un anticipo.';
+}
+
+function resetFullPaymentForPurchaseChange() {
+  currentAttemptKey = null;
+  retryMode = false;
+  isNewCustomerDemo = false;
+  document.getElementById('new-customer-demo').checked = false;
+  const codOption = document.querySelector('.method-option[data-method-id="cod"]');
+  if (codOption) codOption.hidden = true;
+  clearMethodSelection('Ningún método seleccionado.');
+  setMethodInputsDisabled(false);
+  document.getElementById('payment-result').hidden = true;
+  document.getElementById('payment-result').className = 'payment-result';
+  document.getElementById('cancelled-operation').hidden = true;
+  document.getElementById('process-payment').textContent = 'Realizar pago';
+}
+
+function resetReservationForPurchaseChange() {
+  reservationQuote = null;
+  reservationMethodId = null;
+  reservationAttemptKey = null;
+  document.getElementById('reservation-panel').hidden = true;
+  document.getElementById('reservation-quote').hidden = true;
+  document.getElementById('reservation-methods').hidden = true;
+  document.getElementById('reservation-result').hidden = true;
+  document.getElementById('reservation-result').className = 'payment-result';
+  document.getElementById('reservation-status').textContent = '';
+  document.getElementById('confirm-reservation').disabled = true;
+  document.querySelectorAll('input[name="reservation-method"]').forEach((input) => {
+    input.checked = false;
+    input.disabled = false;
+  });
+  document.querySelectorAll('.reservation-method-options .method-option').forEach((option) => {
+    option.classList.remove('selected');
+  });
+}
+
+function selectPurchaseType(nextType) {
+  if (nextType === purchaseType) return;
+  if (!canChangePurchaseType()) {
+    renderPurchaseType();
+    document.getElementById('purchase-choice-status').textContent =
+      'Espera a confirmar el resultado de la operación antes de cambiar de alternativa.';
+    return;
+  }
+
+  if (purchaseType === 'full') resetFullPaymentForPurchaseChange();
+  if (purchaseType === 'reservation') resetReservationForPurchaseChange();
+  purchaseType = nextType === 'reservation' ? 'reservation' : 'full';
+  renderPurchaseType();
+}
+
+document.querySelectorAll('input[name="purchase-type"]').forEach((input) => {
+  input.addEventListener('change', () => selectPurchaseType(input.value));
+});
+
+renderPurchaseType();
+
 async function loadReservationQuote() {
   const panel = document.getElementById('reservation-panel');
   const status = document.getElementById('reservation-status');
+  const openButton = document.getElementById('open-reservation');
+  if (reservationQuoteLoading || reservationInProgress) return;
+  reservationQuoteLoading = true;
+  openButton.disabled = true;
+  setPurchaseTypeControlsDisabled(true);
   panel.hidden = false;
   status.textContent = 'Consultando valores de la reserva…';
   document.getElementById('reservation-quote').hidden = true;
@@ -96,6 +189,10 @@ async function loadReservationQuote() {
     document.getElementById('reservation-methods').hidden = false;
   } catch {
     status.textContent = 'No fue posible preparar la reserva. Comprueba el backend.';
+  } finally {
+    reservationQuoteLoading = false;
+    openButton.disabled = false;
+    setPurchaseTypeControlsDisabled(reservationUnconfirmedAttempt);
   }
 }
 
@@ -116,6 +213,8 @@ async function processReservation() {
   const button = document.getElementById('confirm-reservation');
   const result = document.getElementById('reservation-result');
   reservationInProgress = true;
+  reservationUnconfirmedAttempt = false;
+  setPurchaseTypeControlsDisabled(true);
   button.disabled = true;
   document.querySelectorAll('input[name="reservation-method"]').forEach((input) => {
     input.disabled = true;
@@ -154,6 +253,8 @@ async function processReservation() {
     renderRetryAction(result, transaction);
     reservationAttemptKey = null;
     reservationInProgress = false;
+    reservationUnconfirmedAttempt = false;
+    setPurchaseTypeControlsDisabled(false);
   } catch {
     const presentation = window.PaymentResult.getUnconfirmedPaymentPresentation();
     result.classList.add(presentation.className);
@@ -162,7 +263,9 @@ async function processReservation() {
     document.getElementById('reservation-transaction-id').textContent =
       presentation.transactionText;
     reservationInProgress = false;
+    reservationUnconfirmedAttempt = true;
     button.disabled = false;
+    setPurchaseTypeControlsDisabled(true);
   }
 }
 
@@ -245,6 +348,7 @@ async function processSelectedPayment() {
   const resultTitle = document.getElementById('payment-result-title');
   const transactionId = document.getElementById('payment-transaction-id');
   paymentInProgress = true;
+  setPurchaseTypeControlsDisabled(true);
   paymentButton.disabled = true;
   setMethodInputsDisabled(true);
   setReviewActionsDisabled(true);
@@ -292,6 +396,7 @@ async function processSelectedPayment() {
     retryMode = false;
     paymentInProgress = false;
     unconfirmedAttempt = false;
+    setPurchaseTypeControlsDisabled(false);
     document.getElementById('pending-payment-review').hidden = true;
     paymentButton.textContent = 'Realizar pago';
   } catch {
@@ -304,6 +409,7 @@ async function processSelectedPayment() {
     renderRetryAction(paymentResult, null);
     paymentInProgress = false;
     unconfirmedAttempt = true;
+    setPurchaseTypeControlsDisabled(true);
     setMethodInputsDisabled(true);
     document.getElementById('pending-payment-review').hidden = true;
     paymentButton.disabled = false;
@@ -511,6 +617,7 @@ function beginRetry() {
   currentAttemptKey = null;
   selectedMethodId = null;
   unconfirmedAttempt = false;
+  setPurchaseTypeControlsDisabled(false);
   setMethodInputsDisabled(false);
   document.getElementById('cancelled-operation').hidden = true;
   document.getElementById('pending-payment-review').hidden = true;
@@ -534,6 +641,8 @@ async function beginReservationRetry() {
   reservationAttemptKey = null;
   reservationMethodId = null;
   reservationInProgress = false;
+  reservationUnconfirmedAttempt = false;
+  setPurchaseTypeControlsDisabled(false);
   document.querySelectorAll('input[name="reservation-method"]').forEach((input) => {
     input.checked = false;
     input.disabled = false;

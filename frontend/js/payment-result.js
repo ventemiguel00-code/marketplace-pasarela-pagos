@@ -133,6 +133,29 @@ function getLastTransactionId(storage) {
   return storage?.getItem(LAST_TRANSACTION_KEY) ?? '';
 }
 
+function getPurchaseChoicePresentation(purchaseType = 'full') {
+  const normalizedType = purchaseType === 'reservation' ? 'reservation' : 'full';
+  return {
+    purchaseType: normalizedType,
+    fullPaymentHidden: normalizedType !== 'full',
+    reservationHidden: normalizedType !== 'reservation',
+  };
+}
+
+function canChangePurchaseChoice({
+  paymentInProgress = false,
+  reservationInProgress = false,
+  reservationQuoteLoading = false,
+  unconfirmedAttempt = false,
+  reservationUnconfirmedAttempt = false,
+} = {}) {
+  return !paymentInProgress
+    && !reservationInProgress
+    && !reservationQuoteLoading
+    && !unconfirmedAttempt
+    && !reservationUnconfirmedAttempt;
+}
+
 if (typeof window !== 'undefined') {
   window.PaymentResult = {
     getPaymentResultPresentation,
@@ -144,6 +167,8 @@ if (typeof window !== 'undefined') {
     getPaymentReview,
     saveLastTransactionId,
     getLastTransactionId,
+    getPurchaseChoicePresentation,
+    canChangePurchaseChoice,
   };
 }
 if (typeof module !== 'undefined' && module.exports) {
@@ -157,5 +182,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getPaymentReview,
     saveLastTransactionId,
     getLastTransactionId,
+    getPurchaseChoicePresentation,
+    canChangePurchaseChoice,
   };
 }

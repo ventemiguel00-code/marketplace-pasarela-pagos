@@ -101,15 +101,30 @@ test('Express sirve la página y sus recursos desde el mismo origen', async () =
   }
 });
 
-test('HU-PG-10: la página muestra ayuda pendiente sin enlaces ni crear pagos', async () => {
+test('mejora visual: la página inicia con pago completo y anticipo oculto', async () => {
+  const transactionCount = fakeTransactionNumber;
+  const response = await fetch(`${baseUrl}/`);
+  const html = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(html, /¿Cómo deseas realizar tu compra\?/);
+  assert.match(html, /name="purchase-type" value="full" checked/);
+  assert.match(html, /id="reservation-option-panel"[\s\S]*?hidden/);
+  assert.match(html, /id="full-payment-panel"/);
+  assert.equal(fakeTransactionNumber, transactionCount);
+});
+
+test('HU-PG-10: la página muestra el contacto autorizado de WhatsApp sin crear pagos', async () => {
   const transactionCount = fakeTransactionNumber;
   const response = await fetch(`${baseUrl}/`);
   const html = await response.text();
 
   assert.equal(response.status, 200);
   assert.match(html, /¿Necesitas ayuda con tu pago\?/);
-  assert.match(html, /Número de soporte pendiente por definir/);
-  assert.doesNotMatch(html, /href=["'](?:tel:|https:\/\/(?:wa\.me|api\.whatsapp))/i);
+  assert.match(html, /Soporte: 3154721757/);
+  assert.match(html, /href="https:\/\/wa\.me\/573154721757"/);
+  assert.match(html, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(html, /Contactar por WhatsApp/);
   assert.equal(fakeTransactionNumber, transactionCount);
 });
 

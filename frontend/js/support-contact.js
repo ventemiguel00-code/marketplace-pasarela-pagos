@@ -1,8 +1,9 @@
-// Configura aquí el número oficial cuando el Marketplace lo autorice.
-// Usa formato internacional, por ejemplo: +57 seguido del número completo.
-const SUPPORT_PHONE = '';
+// Contacto autorizado para la demostración académica del Marketplace.
+const SUPPORT_PHONE = '3154721757';
+const SUPPORT_PHONE_INTERNATIONAL = '+573154721757';
+const SUPPORT_WHATSAPP_URL = 'https://wa.me/573154721757';
 
-function getSupportContactPresentation(phone = '') {
+function getSupportContactPresentation(phone = SUPPORT_PHONE_INTERNATIONAL) {
   const displayPhone = String(phone).trim();
   const normalizedPhone = displayPhone.replace(/[\s()-]/g, '');
   const isValid = /^\+[1-9]\d{7,14}$/.test(normalizedPhone);
@@ -19,14 +20,16 @@ function getSupportContactPresentation(phone = '') {
 
   return {
     available: true,
-    message: `Soporte del Marketplace: ${displayPhone}`,
-    phone: displayPhone,
-    callHref: `tel:${normalizedPhone}`,
-    whatsappHref: null,
+    message: `Soporte del Marketplace: ${SUPPORT_PHONE}`,
+    phone: SUPPORT_PHONE,
+    callHref: null,
+    whatsappHref: normalizedPhone === SUPPORT_PHONE_INTERNATIONAL
+      ? SUPPORT_WHATSAPP_URL
+      : `https://wa.me/${normalizedPhone.slice(1)}`,
   };
 }
 
-function renderSupportContact(documentRef, phone = SUPPORT_PHONE) {
+function renderSupportContact(documentRef, phone = SUPPORT_PHONE_INTERNATIONAL) {
   const status = documentRef.getElementById('support-contact-status');
   if (!status) return;
 
@@ -39,10 +42,17 @@ function renderSupportContact(documentRef, phone = SUPPORT_PHONE) {
     return;
   }
 
-  const callLink = documentRef.createElement('a');
-  callLink.href = presentation.callHref;
-  callLink.textContent = `Llamar a soporte: ${presentation.phone}`;
-  status.append(callLink);
+  const phoneText = documentRef.createElement('span');
+  phoneText.className = 'support-contact-number';
+  phoneText.textContent = `Soporte: ${presentation.phone}`;
+
+  const whatsappLink = documentRef.createElement('a');
+  whatsappLink.className = 'support-whatsapp-link';
+  whatsappLink.href = presentation.whatsappHref;
+  whatsappLink.target = '_blank';
+  whatsappLink.rel = 'noopener noreferrer';
+  whatsappLink.textContent = 'Contactar por WhatsApp';
+  status.append(phoneText, whatsappLink);
 }
 
 if (typeof window !== 'undefined') {
@@ -53,6 +63,8 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     SUPPORT_PHONE,
+    SUPPORT_PHONE_INTERNATIONAL,
+    SUPPORT_WHATSAPP_URL,
     getSupportContactPresentation,
     renderSupportContact,
   };

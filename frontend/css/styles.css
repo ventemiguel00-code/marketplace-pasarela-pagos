@@ -20,6 +20,17 @@ h2 { margin: 3px 0 0; font-size: 1.3rem; line-height: 1.3; }
 .total-row dt { color: #173f68; font-weight: 750; }
 .total-row dd { color: #123d67; font-size: clamp(1.35rem, 4vw, 1.75rem); font-weight: 800; }
 .reservation-card { border-top: 4px solid #8b6a25; }
+.purchase-choice-card { border-top: 4px solid #315a82; }
+.purchase-choice-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.purchase-choice-option { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border: 1px solid #c8d3df; border-radius: 10px; background: #fff; cursor: pointer; }
+.purchase-choice-option:hover { border-color: #7f9bb5; }
+.purchase-choice-option.selected { border-color: #315a82; background: #edf4fb; box-shadow: 0 0 0 2px rgb(49 90 130 / 12%); }
+.purchase-choice-option input { margin-top: 4px; accent-color: #315a82; }
+.purchase-choice-option span { display: grid; gap: 5px; }
+.purchase-choice-option strong { color: #20384f; }
+.purchase-choice-option small { color: #5b6b7a; line-height: 1.4; }
+.purchase-choice-option:focus-within { outline: 3px solid #d58a24; outline-offset: 3px; }
+.purchase-flow-card[hidden] { display: none; }
 .reservation-panel { margin-top: 18px; padding-top: 18px; border-top: 1px solid #dce4ee; }
 .reservation-panel[hidden] { display: none; }
 .reservation-panel .operation-details { margin-top: 14px; }
@@ -89,6 +100,9 @@ fieldset { padding: 0; border: 0; margin: 22px 0 0; }
 .support-contact-status.available { color: #174f7c; background: #edf4fb; border: 1px solid #a8c3dc; }
 .support-contact-status a { color: inherit; text-underline-offset: 3px; }
 .support-contact-status a:focus-visible { outline: 3px solid #d58a24; outline-offset: 4px; }
+  .support-contact-number { display: block; margin-bottom: 12px; }
+  .support-whatsapp-link { display: inline-block; padding: 10px 14px; color: #fff !important; background: #18794e; border-radius: 8px; text-decoration: none; }
+  .support-whatsapp-link:hover { background: #12613e; }
 button { width: 100%; margin-top: 16px; padding: 13px 18px; color: white; background: #174f7c; border: 0; border-radius: 9px; font: inherit; font-weight: 750; cursor: pointer; }
 button:hover:not(:disabled) { background: #103d61; }
 button:focus-visible { outline: 3px solid #d58a24; outline-offset: 4px; }
@@ -101,6 +115,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .summary-row { grid-template-columns: 1fr; gap: 2px; }
   .summary-row dd { text-align: left; }
   #payment-method-options { grid-template-columns: 1fr; }
+  .purchase-choice-options { grid-template-columns: 1fr; }
   .reservation-method-options { grid-template-columns: 1fr; }
   .status-query-controls { grid-template-columns: 1fr; }
   .status-query-controls button { width: 100%; }
