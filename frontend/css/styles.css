@@ -52,6 +52,11 @@ fieldset { padding: 0; border: 0; margin: 22px 0 0; }
 .customer-demo p { margin: 2px 0 0; color: #5b6b7d; font-size: 0.9rem; }
 .cod-explanation { margin: 14px 0 0; padding: 14px; color: #5f4a25; background: #fff8e8; border: 1px solid #dec184; border-radius: 10px; }
 .cod-explanation[hidden] { display: none; }
+.cod-explanation h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.cod-explanation p { margin: 6px 0; }
+.cod-explanation .operation-details { margin-top: 12px; }
+.cod-advance-method-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#cod-advance-methods legend { margin-bottom: 10px; font-weight: 700; }
 .operation-review { margin-top: 18px; padding: 18px; background: #f5f8fc; border: 1px solid #cdd9e5; border-radius: 10px; }
 .operation-review h3 { margin: 0 0 12px; font-size: 1.05rem; }
 .operation-details { margin: 0; }
@@ -117,6 +122,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   #payment-method-options { grid-template-columns: 1fr; }
   .purchase-choice-options { grid-template-columns: 1fr; }
   .reservation-method-options { grid-template-columns: 1fr; }
+  .cod-advance-method-options { grid-template-columns: 1fr; }
   .status-query-controls { grid-template-columns: 1fr; }
   .status-query-controls button { width: 100%; }
   .confirmation-details div { grid-template-columns: 1fr; gap: 1px; }

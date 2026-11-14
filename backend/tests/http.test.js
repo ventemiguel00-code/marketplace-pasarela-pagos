@@ -46,6 +46,12 @@ const getReservationQuote = createGetReservationQuote(
   localOrderSummary,
   academicReservationPolicy,
 );
+const processReservation = createProcessReservation({
+  getReservationQuote,
+  paymentMethodPort: localPaymentMethods,
+  paymentProcessorPort: simulatedPaymentProcessor,
+  transactionRepositoryPort: fakeTransactionRepository,
+});
 
 const app = createApp(
   createGetPaymentSummary(localOrderSummary),
@@ -55,15 +61,11 @@ const app = createApp(
     paymentMethodPort: localPaymentMethods,
     paymentProcessorPort: simulatedPaymentProcessor,
     transactionRepositoryPort: fakeTransactionRepository,
+    processAdvance: processReservation,
   }),
   createGetPaymentStatus(fakeTransactionRepository),
   getReservationQuote,
-  createProcessReservation({
-    getReservationQuote,
-    paymentMethodPort: localPaymentMethods,
-    paymentProcessorPort: simulatedPaymentProcessor,
-    transactionRepositoryPort: fakeTransactionRepository,
-  }),
+  processReservation,
 );
 
 let server;
@@ -183,7 +185,9 @@ test('HU-PG-11: la página identifica claramente la simulación de cliente nuevo
   assert.equal(response.status, 200);
   assert.match(html, /Simular cliente nuevo/);
   assert.match(html, /no valida identidad ni historial/);
-  assert.match(html, /Pagarás el valor del pedido cuando recibas el producto/);
+  assert.match(html, /Pago contra entrega con anticipo obligatorio/);
+  assert.match(html, /Anticipo requerido/);
+  assert.match(html, /Saldo al recibir/);
 });
 
 test('HU-PG-03 y 04: PSE procesa con HTTP 201 y resultado APPROVED', async () => {
@@ -259,13 +263,21 @@ test('HU-PG-11: registra contra entrega como pendiente y permite consultarla', a
       orderId: 'ORD-00125',
       methodId: 'cod',
       customerType: 'NEW_CUSTOMER_DEMO',
+      advanceMethodId: 'pse',
+      amount: 149900,
     }),
   });
   const payment = await paymentResponse.json();
 
   assert.equal(paymentResponse.status, 201);
   assert.equal(payment.methodId, 'cod');
-  assert.equal(payment.amount, 149900);
+  assert.equal(payment.advanceMethodId, 'pse');
+  assert.equal(payment.operationType, 'COD_WITH_ADVANCE');
+  assert.equal(payment.amount, 50000);
+  assert.equal(payment.receivedAmount, 50000);
+  assert.equal(payment.totalAmount, 149900);
+  assert.equal(payment.balanceAmount, 99900);
+  assert.equal(payment.codStatus, 'ENABLED');
   assert.equal(payment.status, 'PENDING_COD');
   assert.equal(fakeTransactionNumber, countBefore + 1);
 
@@ -278,8 +290,15 @@ test('HU-PG-11: registra contra entrega como pendiente y permite consultarla', a
     transactionId: payment.transactionId,
     orderId: 'ORD-00125',
     methodId: 'cod',
-    amount: 149900,
+    amount: 50000,
     status: 'PENDING_COD',
+    operationType: 'COD_WITH_ADVANCE',
+    advanceMethodId: 'pse',
+    receivedAmount: 50000,
+    product: 'Audífonos Bluetooth JBL Tune 520BT',
+    totalAmount: 149900,
+    balanceAmount: 99900,
+    codStatus: 'ENABLED',
     createdAt: queried.createdAt,
   });
   assert.ok(queried.createdAt);
@@ -295,6 +314,7 @@ test('HU-PG-11: solicitudes simultáneas con la misma clave no se duplican', asy
       orderId: 'ORD-00125',
       methodId: 'cod',
       customerType: 'NEW_CUSTOMER_DEMO',
+      advanceMethodId: 'pse',
     }),
   });
   const countBefore = fakeTransactionNumber;
@@ -305,7 +325,77 @@ test('HU-PG-11: solicitudes simultáneas con la misma clave no se duplican', asy
   assert.deepEqual([firstResponse.status, secondResponse.status].sort(), [200, 201]);
   assert.equal(first.transactionId, second.transactionId);
   assert.equal(first.status, 'PENDING_COD');
+  assert.equal(first.amount, 50000);
+  assert.equal(first.receivedAmount, 50000);
   assert.equal(fakeTransactionNumber, countBefore + 1);
+});
+
+test('HU-PG-11: no permite omitir el anticipo desde el endpoint', async () => {
+  const countBefore = fakeTransactionNumber;
+  const response = await fetch(`${baseUrl}/api/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      orderId: 'ORD-00125',
+      methodId: 'cod',
+      customerType: 'NEW_CUSTOMER_DEMO',
+    }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /PSE o Código QR/);
+  assert.equal(fakeTransactionNumber, countBefore);
+});
+
+test('HU-PG-11: QR rechaza el anticipo y no habilita pago contra entrega', async () => {
+  const countBefore = fakeTransactionNumber;
+  const response = await fetch(`${baseUrl}/api/payments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': 'attempt:cod-qr-rejected-003',
+    },
+    body: JSON.stringify({
+      orderId: 'ORD-00125',
+      methodId: 'cod',
+      customerType: 'NEW_CUSTOMER_DEMO',
+      advanceMethodId: 'qr',
+      amount: 1,
+      totalAmount: 1,
+    }),
+  });
+  const transaction = await response.json();
+
+  assert.equal(response.status, 201);
+  assert.equal(transaction.status, 'REJECTED');
+  assert.equal(transaction.amount, 50000);
+  assert.equal(transaction.receivedAmount, 0);
+  assert.equal(transaction.totalAmount, 149900);
+  assert.equal(transaction.balanceAmount, 149900);
+  assert.equal(transaction.codStatus, 'NOT_ENABLED');
+  assert.equal(fakeTransactionNumber, countBefore + 1);
+});
+
+test('HU-PG-11: una clave de anticipo no puede reutilizarse con otro método', async () => {
+  const key = 'attempt:cod-conflict-004';
+  const baseBody = {
+    orderId: 'ORD-00125',
+    methodId: 'cod',
+    customerType: 'NEW_CUSTOMER_DEMO',
+  };
+  const first = await fetch(`${baseUrl}/api/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    body: JSON.stringify({ ...baseBody, advanceMethodId: 'qr' }),
+  });
+  const conflict = await fetch(`${baseUrl}/api/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    body: JSON.stringify({ ...baseBody, advanceMethodId: 'pse' }),
+  });
+
+  assert.equal(first.status, 201);
+  assert.equal(conflict.status, 409);
 });
 
 test('HU-PG-12: cotiza el anticipo académico sin aceptar montos del frontend', async () => {
@@ -329,7 +419,7 @@ test('HU-PG-12: PSE aprueba el anticipo y confirma la reserva de demostración',
       'Idempotency-Key': 'attempt:reservation-pse-001',
     },
     body: JSON.stringify({
-      orderId: 'ORD-00125', methodId: 'pse', amount: 1, totalAmount: 1,
+      orderId: 'ORD-00125', methodId: 'pse', amount: 1, totalAmount: 1, purpose: 'cod',
     }),
   });
   const reservation = await response.json();
@@ -533,4 +623,25 @@ test('HU-PG-07: una clave reutilizada para otra solicitud devuelve 409', async (
   });
   assert.equal(response.status, 409);
   assert.match((await response.json()).error, /otra solicitud/);
+});
+
+test('Fase 9B: las rutas compatibles reutilizan el procesamiento y la consulta actuales', async () => {
+  const createdResponse = await fetch(`${baseUrl}/api/pagos/procesar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'attempt:compatibility-001' },
+    body: JSON.stringify({ orderId: 'ORD-00125', methodId: 'pse' }),
+  });
+  const created = await createdResponse.json();
+  assert.equal(createdResponse.status, 201);
+  assert.equal(created.status, 'APPROVED');
+
+  const queriedResponse = await fetch(`${baseUrl}/api/pagos/${created.transactionId}`);
+  assert.equal(queriedResponse.status, 200);
+  assert.equal((await queriedResponse.json()).transactionId, created.transactionId);
+});
+
+test('Fase 9B: /docs publica la documentación OpenAPI', async () => {
+  const response = await fetch(`${baseUrl}/docs`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /text\/html/);
 });

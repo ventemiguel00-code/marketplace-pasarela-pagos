@@ -9,7 +9,8 @@ La tabla `payment_transactions` puede guardar:
 
 - `transaction_id`: identificador único de la transacción.
 - `order_id`: identificador del pedido.
-- `method_id`: `pse`, `qr` o `cod`.
+- `method_id`: `pse`, `qr`, `cod` histórico o `cod:pse` / `cod:qr` para la adaptación
+  de contra entrega con anticipo obligatorio.
 - `amount`: valor intentado o registrado en COP.
 - `status`: `APPROVED`, `REJECTED` o `PENDING_COD`.
 - `created_at`: fecha y hora de PostgreSQL.
@@ -22,7 +23,8 @@ No almacena números de tarjeta, cuentas bancarias ni datos bancarios sensibles.
 
 - `APPROVED` sin datos de reserva: pago completo aprobado en la simulación.
 - `REJECTED`: intento rechazado; no representa dinero recibido.
-- `PENDING_COD`: solicitud de pago contra entrega; el dinero sigue pendiente.
+- `PENDING_COD` con `method_id` iniciado por `cod:`: el anticipo de $50.000 fue
+  aprobado, pero el saldo de la compra sigue pendiente contra entrega.
 - Anticipo `APPROVED` y reserva `CONFIRMED`: solamente se recibió el valor del
   anticipo, no el total del pedido.
 - Anticipo `REJECTED` y reserva `NOT_CONFIRMED`: no se recibió dinero y no se
@@ -96,9 +98,11 @@ Respuesta académica de ejemplo:
 }
 ```
 
-PSE produce `APPROVED`, QR produce `REJECTED` y contra entrega produce
-`PENDING_COD`. Para contra entrega también se envía
-`"customerType":"NEW_CUSTOMER_DEMO"`.
+PSE produce `APPROVED` y QR produce `REJECTED` para pagos completos. Para contra
+entrega se envían `"customerType":"NEW_CUSTOMER_DEMO"` y `advanceMethodId` con
+`pse` o `qr`. El anticipo PSE aprobado produce `PENDING_COD`, registra únicamente
+$50.000 recibidos y deja el saldo. El anticipo QR rechazado no habilita la modalidad
+ni registra dinero recibido.
 
 ### Consultar una transacción
 
@@ -168,8 +172,9 @@ tipo de operación, método, valor intentado, valor recibido, estado, total, sal
 estado de reserva, fecha y una marca de simulación académica.
 
 Contabilidad debería usar `transactionId` como clave contra duplicados. El valor
-recibido sería cero para `REJECTED` y `PENDING_COD`; para un anticipo aprobado sería
-solo el abono. Una consulta repetida no debería crear otro registro contable.
+recibido sería cero para `REJECTED`; para `PENDING_COD` con anticipo aprobado sería
+solo el abono de $50.000. Una consulta repetida no debería crear otro registro
+contable.
 
 ### Pendiente de acordar
 

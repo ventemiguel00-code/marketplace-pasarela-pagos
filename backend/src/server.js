@@ -12,11 +12,31 @@ const { academicReservationPolicy } = require('./adapters/local/academic-reserva
 const simulatedPaymentProcessor = require('./adapters/local/simulated-payment-processor');
 const createPostgresTransactionRepository = require('./adapters/persistence/postgres-transaction-repository');
 const { createPool } = require('./adapters/persistence/postgres');
+const { createJwtAuthentication } = require('./adapters/http/jwt-authentication');
+const { createRequestAuthorization } = require('./adapters/http/request-authorization');
 
 // Composición: los adaptadores locales pueden sustituirse por integraciones reales.
 const pool = createPool();
 const transactionRepository = createPostgresTransactionRepository(pool);
 const getReservationQuote = createGetReservationQuote(localOrderSummary, academicReservationPolicy);
+const processReservation = createProcessReservation({
+  getReservationQuote,
+  paymentMethodPort: localPaymentMethods,
+  paymentProcessorPort: simulatedPaymentProcessor,
+  transactionRepositoryPort: transactionRepository,
+});
+// La autenticación queda desactivada en la demostración local. Al habilitarla,
+// la capa HTTP valida el JWT antes de entrar en los casos de uso.
+const authenticateBuyer = createJwtAuthentication({
+  required: process.env.AUTH_JWT_REQUIRED === 'true',
+  issuer: process.env.AUTH_JWT_ISSUER,
+  audience: process.env.AUTH_JWT_AUDIENCE,
+  jwksUrl: process.env.AUTH_JWT_JWKS_URL,
+  algorithms: ['ES256'],
+});
+// Órdenes aún no ha entregado su contrato de propiedad. En modo JWT el
+// middleware responderá 503 en vez de asumir que una orden es del comprador.
+const requestAuthorization = createRequestAuthorization();
 const app = createApp(
   createGetPaymentSummary(localOrderSummary),
   createGetPaymentMethods(localPaymentMethods),
@@ -25,15 +45,16 @@ const app = createApp(
     paymentMethodPort: localPaymentMethods,
     paymentProcessorPort: simulatedPaymentProcessor,
     transactionRepositoryPort: transactionRepository,
+    processAdvance: processReservation,
   }),
   createGetPaymentStatus(transactionRepository),
   getReservationQuote,
-  createProcessReservation({
-    getReservationQuote,
-    paymentMethodPort: localPaymentMethods,
-    paymentProcessorPort: simulatedPaymentProcessor,
-    transactionRepositoryPort: transactionRepository,
-  }),
+  processReservation,
+  {
+    authenticateBuyer,
+    requestAuthorization,
+    corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN || null,
+  },
 );
 
 const server = app.listen(port, host, () => {

@@ -1,4 +1,13 @@
 function getPaymentResultPresentation(status, transactionId, transaction = null) {
+  if (transaction?.operationType === 'COD_WITH_ADVANCE') {
+    return {
+      title: status === 'PENDING_COD'
+        ? 'Anticipo aprobado · pago contra entrega pendiente'
+        : 'Anticipo rechazado · pago contra entrega no habilitado',
+      className: status === 'PENDING_COD' ? 'pending-cod' : 'rejected',
+      transactionText: `Anticipo: ${transactionId}`,
+    };
+  }
   if (transaction?.reservationStatus) {
     return {
       title: status === 'APPROVED' ? 'Anticipo aprobado' : 'Anticipo rechazado',
@@ -69,6 +78,25 @@ function getReservationInformation(transaction) {
     reservationStatusText: transaction.reservationStatus === 'CONFIRMED'
       ? 'Reserva de demostración confirmada'
       : 'Reserva no confirmada',
+  };
+}
+
+function getCodAdvanceInformation(transaction) {
+  if (transaction?.operationType !== 'COD_WITH_ADVANCE') return null;
+  const isEnabled = transaction.status === 'PENDING_COD';
+  return {
+    transactionId: transaction.transactionId,
+    orderId: transaction.orderId,
+    totalAmount: transaction.totalAmount,
+    requestedAdvanceAmount: transaction.amount,
+    registeredAdvanceAmount: transaction.receivedAmount ?? (isEnabled ? transaction.amount : 0),
+    balanceAmount: transaction.balanceAmount,
+    advanceMethodName: { pse: 'PSE', qr: 'Código QR' }[transaction.advanceMethodId]
+      ?? transaction.advanceMethodId,
+    advanceStatusText: isEnabled ? 'Anticipo aprobado' : 'Anticipo rechazado',
+    codStatusText: isEnabled
+      ? 'Habilitado · saldo pendiente al recibir'
+      : 'No habilitado',
   };
 }
 
@@ -162,6 +190,7 @@ if (typeof window !== 'undefined') {
     getUnconfirmedPaymentPresentation,
     getSuccessfulPaymentConfirmation,
     getReservationInformation,
+    getCodAdvanceInformation,
     getTransactionInformation,
     canRetryPayment,
     getPaymentReview,
@@ -177,6 +206,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getUnconfirmedPaymentPresentation,
     getSuccessfulPaymentConfirmation,
     getReservationInformation,
+    getCodAdvanceInformation,
     getTransactionInformation,
     canRetryPayment,
     getPaymentReview,

@@ -13,6 +13,14 @@ let reservationInProgress = false;
 let reservationQuoteLoading = false;
 let reservationUnconfirmedAttempt = false;
 let purchaseType = 'full';
+let codAdvanceQuote = null;
+let codAdvanceMethodId = null;
+let codAdvanceQuoteLoading = false;
+
+async function apiFetch(url, options = {}) {
+  const headers = await window.MarketplaceAuthBridge.withAuthHeaders(options.headers);
+  return fetch(url, { ...options, headers });
+}
 
 function createAttemptKey() {
   const randomPart = crypto.randomUUID
@@ -48,7 +56,7 @@ async function loadSummary() {
   // La demo abre ORD-00125; el parámetro permite consultar otra orden preparada.
   summaryElement.hidden = true;
   try {
-    const response = await fetch(`/api/payments/summary/${encodeURIComponent(currentOrderId)}`, {
+    const response = await apiFetch(`/api/payments/summary/${encodeURIComponent(currentOrderId)}`, {
       cache: 'no-store', signal: AbortSignal.timeout(5000),
     });
     if (response.status === 404) {
@@ -116,6 +124,24 @@ function resetFullPaymentForPurchaseChange() {
   document.getElementById('payment-result').className = 'payment-result';
   document.getElementById('cancelled-operation').hidden = true;
   document.getElementById('process-payment').textContent = 'Realizar pago';
+  resetCodAdvance();
+}
+
+function resetCodAdvance() {
+  codAdvanceQuote = null;
+  codAdvanceMethodId = null;
+  codAdvanceQuoteLoading = false;
+  document.getElementById('cod-explanation').hidden = true;
+  document.getElementById('cod-advance-status').textContent = '';
+  document.getElementById('cod-advance-details').hidden = true;
+  document.getElementById('cod-advance-methods').hidden = true;
+  document.querySelectorAll('input[name="cod-advance-method"]').forEach((input) => {
+    input.checked = false;
+    input.disabled = false;
+  });
+  document.querySelectorAll('.cod-advance-method-options .method-option').forEach((option) => {
+    option.classList.remove('selected');
+  });
 }
 
 function resetReservationForPurchaseChange() {
@@ -174,7 +200,7 @@ async function loadReservationQuote() {
   document.getElementById('confirm-reservation').disabled = true;
 
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `/api/payments/reservations/quote/${encodeURIComponent(currentOrderId)}`,
       { cache: 'no-store', signal: AbortSignal.timeout(5000) },
     );
@@ -228,7 +254,7 @@ async function processReservation() {
   if (!reservationAttemptKey) reservationAttemptKey = createAttemptKey();
 
   try {
-    const response = await fetch('/api/payments/reservations', {
+    const response = await apiFetch('/api/payments/reservations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -271,6 +297,54 @@ async function processReservation() {
 
 document.getElementById('confirm-reservation').addEventListener('click', processReservation);
 
+async function prepareCodAdvance() {
+  if (codAdvanceQuoteLoading || paymentInProgress) return;
+  resetCodAdvance();
+  codAdvanceQuoteLoading = true;
+  const panel = document.getElementById('cod-explanation');
+  const status = document.getElementById('cod-advance-status');
+  const paymentButton = document.getElementById('process-payment');
+  panel.hidden = false;
+  status.textContent = 'Consultando el anticipo obligatorio…';
+  paymentButton.disabled = true;
+
+  try {
+    const response = await apiFetch(
+      `/api/payments/reservations/quote/${encodeURIComponent(currentOrderId)}`,
+      { cache: 'no-store', signal: AbortSignal.timeout(5000) },
+    );
+    if (!response.ok) throw new Error('No se pudo consultar el anticipo.');
+    codAdvanceQuote = await response.json();
+    document.getElementById('cod-total-amount').textContent = formatCop(codAdvanceQuote.totalAmount);
+    document.getElementById('cod-advance-amount').textContent = formatCop(codAdvanceQuote.advanceAmount);
+    document.getElementById('cod-balance-amount').textContent = formatCop(codAdvanceQuote.balanceAmount);
+    document.getElementById('cod-advance-details').hidden = false;
+    document.getElementById('cod-advance-methods').hidden = false;
+    status.textContent = 'Selecciona PSE o Código QR para simular el anticipo.';
+  } catch {
+    status.textContent = 'No fue posible preparar el anticipo. Comprueba el backend.';
+  } finally {
+    codAdvanceQuoteLoading = false;
+  }
+}
+
+document.querySelectorAll('input[name="cod-advance-method"]').forEach((input) => {
+  input.addEventListener('change', () => {
+    codAdvanceMethodId = input.value;
+    document.querySelectorAll('.cod-advance-method-options .method-option').forEach((option) => {
+      option.classList.toggle('selected', option.contains(input));
+    });
+    document.getElementById('cod-advance-status').textContent =
+      `Anticipo seleccionado: ${input.value === 'pse' ? 'PSE' : 'Código QR'}.`;
+    const paymentButton = document.getElementById('process-payment');
+    paymentButton.disabled = false;
+    paymentButton.textContent = retryMode ? 'Confirmar nuevo intento' : 'Realizar anticipo';
+    renderPendingPaymentReview(
+      `Pago contra entrega · anticipo ${input.value === 'pse' ? 'PSE' : 'Código QR'}`,
+    );
+  });
+});
+
 async function loadPaymentMethods() {
   const message = document.getElementById('methods-status');
   const fieldset = document.getElementById('payment-methods');
@@ -279,7 +353,7 @@ async function loadPaymentMethods() {
   const paymentButton = document.getElementById('process-payment');
 
   try {
-    const response = await fetch('/api/payments/methods', {
+    const response = await apiFetch('/api/payments/methods', {
       cache: 'no-store', signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error('No se pudieron consultar los métodos.');
@@ -303,18 +377,22 @@ async function loadPaymentMethods() {
       options.append(label);
 
       input.addEventListener('change', () => {
+        if (method.id !== 'cod') resetCodAdvance();
         selectedMethodId = method.id;
         document.querySelectorAll('.method-option').forEach((option) => {
           option.classList.toggle('selected', option.contains(input));
         });
         selectionStatus.textContent = `Método seleccionado: ${method.name}`;
-        paymentButton.disabled = false;
+        paymentButton.disabled = method.id === 'cod';
         paymentButton.textContent = method.id === 'cod'
-          ? 'Confirmar pago contra entrega'
+          ? 'Realizar anticipo'
           : (retryMode ? 'Confirmar nuevo intento' : 'Realizar pago');
-        document.getElementById('cod-explanation').hidden = method.id !== 'cod';
+        if (method.id === 'cod') {
+          document.getElementById('pending-payment-review').hidden = true;
+          prepareCodAdvance();
+        }
         document.getElementById('cancelled-operation').hidden = true;
-        renderPendingPaymentReview(method.name);
+        if (method.id !== 'cod') renderPendingPaymentReview(method.name);
       });
     }
 
@@ -342,6 +420,7 @@ document.getElementById('new-customer-demo').addEventListener('change', (event) 
 
 async function processSelectedPayment() {
   if (!selectedMethodId || paymentInProgress) return;
+  if (selectedMethodId === 'cod' && (!codAdvanceQuote || !codAdvanceMethodId)) return;
 
   const paymentButton = document.getElementById('process-payment');
   const paymentResult = document.getElementById('payment-result');
@@ -363,7 +442,7 @@ async function processSelectedPayment() {
   if (!currentAttemptKey) currentAttemptKey = createAttemptKey();
 
   try {
-    const response = await fetch('/api/payments', {
+    const response = await apiFetch('/api/payments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -373,6 +452,7 @@ async function processSelectedPayment() {
         orderId: currentOrderId,
         methodId: selectedMethodId,
         customerType: isNewCustomerDemo ? 'NEW_CUSTOMER_DEMO' : undefined,
+        advanceMethodId: selectedMethodId === 'cod' ? codAdvanceMethodId : undefined,
       }),
       signal: AbortSignal.timeout(5000),
     });
@@ -476,7 +556,9 @@ function renderPendingPaymentReview(methodName) {
   if (!currentSummary || unconfirmedAttempt || paymentInProgress) return;
   const review = window.PaymentResult.getPaymentReview({
     orderId: currentSummary.orderId,
-    amount: currentSummary.totalAmount,
+    amount: selectedMethodId === 'cod' && codAdvanceQuote
+      ? codAdvanceQuote.advanceAmount
+      : currentSummary.totalAmount,
     methodId: selectedMethodId,
   });
   document.getElementById('review-order-id').textContent = review.orderId;
@@ -490,6 +572,21 @@ function renderPendingPaymentReview(methodName) {
 function renderTransactionDetails(container, transaction) {
   container.querySelector('.transaction-details')?.remove();
   if (!transaction) return;
+  const codAdvance = window.PaymentResult.getCodAdvanceInformation(transaction);
+  if (codAdvance) {
+    appendTransactionDetails(container, 'Pago contra entrega con anticipo', [
+      ['Transacción', codAdvance.transactionId],
+      ['Pedido', codAdvance.orderId],
+      ['Precio total', formatCop(codAdvance.totalAmount)],
+      ['Anticipo solicitado', formatCop(codAdvance.requestedAdvanceAmount)],
+      ['Anticipo registrado', formatCop(codAdvance.registeredAdvanceAmount)],
+      ['Saldo pendiente', formatCop(codAdvance.balanceAmount)],
+      ['Método del anticipo', codAdvance.advanceMethodName],
+      ['Estado del anticipo', codAdvance.advanceStatusText],
+      ['Pago contra entrega', codAdvance.codStatusText],
+    ]);
+    return;
+  }
   const reservation = window.PaymentResult.getReservationInformation(transaction);
   if (reservation) {
     const registeredAdvance = formatCop(reservation.registeredAdvanceAmount);
@@ -545,12 +642,15 @@ function renderRetryAction(container, transaction) {
   const retryButton = document.createElement('button');
   retryButton.type = 'button';
   retryButton.className = 'retry-payment';
-  retryButton.textContent = transaction.reservationStatus
+  const isCodAdvance = transaction.operationType === 'COD_WITH_ADVANCE';
+  retryButton.textContent = transaction.reservationStatus || isCodAdvance
     ? 'Intentar el anticipo nuevamente'
     : 'Intentar pagar nuevamente';
   retryButton.addEventListener(
     'click',
-    transaction.reservationStatus ? beginReservationRetry : beginRetry,
+    transaction.reservationStatus
+      ? beginReservationRetry
+      : (isCodAdvance ? beginCodAdvanceRetry : beginRetry),
   );
   container.append(retryButton);
 }
@@ -563,6 +663,9 @@ function setReviewActionsDisabled(disabled) {
 function setMethodInputsDisabled(disabled) {
   document.querySelectorAll('input[name="payment-method"]').forEach((input) => {
     input.disabled = disabled || (input.value === 'cod' && !isNewCustomerDemo);
+  });
+  document.querySelectorAll('input[name="cod-advance-method"]').forEach((input) => {
+    input.disabled = disabled;
   });
 }
 
@@ -578,6 +681,7 @@ function clearMethodSelection(message) {
   document.getElementById('pending-payment-review').hidden = true;
   document.getElementById('cancel-confirmation').hidden = true;
   document.getElementById('cod-explanation').hidden = true;
+  resetCodAdvance();
   document.getElementById('process-payment').disabled = true;
 }
 
@@ -595,7 +699,8 @@ document.getElementById('cancel-operation').addEventListener('click', () => {
 
 document.getElementById('continue-payment').addEventListener('click', () => {
   document.getElementById('cancel-confirmation').hidden = true;
-  document.getElementById('process-payment').disabled = !selectedMethodId;
+  document.getElementById('process-payment').disabled = !selectedMethodId
+    || (selectedMethodId === 'cod' && !codAdvanceMethodId);
 });
 
 document.getElementById('confirm-cancel').addEventListener('click', () => {
@@ -622,6 +727,7 @@ function beginRetry() {
   document.getElementById('cancelled-operation').hidden = true;
   document.getElementById('pending-payment-review').hidden = true;
   document.getElementById('cod-explanation').hidden = true;
+  resetCodAdvance();
   document.querySelectorAll('.retry-payment').forEach((button) => button.remove());
   document.querySelectorAll('input[name="payment-method"]').forEach((input) => {
     input.checked = false;
@@ -635,6 +741,18 @@ function beginRetry() {
   paymentButton.textContent = 'Confirmar nuevo intento';
   paymentButton.disabled = true;
   document.getElementById('payment-methods').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function beginCodAdvanceRetry() {
+  isNewCustomerDemo = true;
+  document.getElementById('new-customer-demo').checked = true;
+  const codOption = document.querySelector('.method-option[data-method-id="cod"]');
+  const codInput = codOption?.querySelector('input');
+  if (codOption) codOption.hidden = false;
+  if (codInput) codInput.disabled = false;
+  beginRetry();
+  document.getElementById('selection-status').textContent =
+    'Selecciona pago contra entrega y el método para un nuevo intento de anticipo.';
 }
 
 async function beginReservationRetry() {
@@ -666,7 +784,7 @@ async function queryPaymentStatus(transactionId) {
   });
 
   try {
-    const response = await fetch(
+    const response = await apiFetch(
       `/api/payments/transactions/${encodeURIComponent(normalizedId)}`,
       { cache: 'no-store', signal: AbortSignal.timeout(5000) },
     );

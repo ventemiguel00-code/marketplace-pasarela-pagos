@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/css/styles.css">
   <script src="/js/payment-result.js" defer></script>
   <script src="/js/support-contact.js" defer></script>
+  <script src="/js/auth-bridge.js" defer></script>
   <script src="/js/app.js" defer></script>
 </head>
 <body>
@@ -128,10 +129,32 @@
       <p id="selection-status" class="selection-status" aria-live="polite">
         Ningún método seleccionado.
       </p>
-      <p id="cod-explanation" class="cod-explanation" hidden>
-        Pagarás el valor del pedido cuando recibas el producto. Esta solicitud quedará
-        pendiente y no significa que el pago ya fue realizado.
-      </p>
+      <div id="cod-explanation" class="cod-explanation" hidden>
+        <h3>Pago contra entrega con anticipo obligatorio</h3>
+        <p>
+          Primero debe aprobarse un anticipo simulado de $50.000 COP. El pago completo
+          todavía no se realiza y el saldo se pagará al recibir el producto.
+        </p>
+        <p id="cod-advance-status" role="status" aria-live="polite"></p>
+        <dl id="cod-advance-details" class="operation-details" hidden>
+          <div><dt>Total del pedido</dt><dd id="cod-total-amount"></dd></div>
+          <div><dt>Anticipo requerido</dt><dd id="cod-advance-amount"></dd></div>
+          <div><dt>Saldo al recibir</dt><dd id="cod-balance-amount"></dd></div>
+        </dl>
+        <fieldset id="cod-advance-methods" hidden>
+          <legend>Selecciona cómo simular el anticipo</legend>
+          <div class="cod-advance-method-options">
+            <label class="method-option">
+              <input type="radio" name="cod-advance-method" value="pse">
+              <span>PSE</span>
+            </label>
+            <label class="method-option">
+              <input type="radio" name="cod-advance-method" value="qr">
+              <span>Código QR</span>
+            </label>
+          </div>
+        </fieldset>
+      </div>
       <div id="pending-payment-review" class="operation-review" hidden>
         <h3>Revisa la información antes de pagar</h3>
         <dl class="operation-details">

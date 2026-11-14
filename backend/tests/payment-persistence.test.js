@@ -113,26 +113,32 @@ test('HU-PG-09: consultar varias veces en PostgreSQL no crea ni modifica registr
 test('HU-PG-11: PostgreSQL conserva una sola solicitud contra entrega pendiente', async () => {
   const transaction = new PaymentTransaction({
     orderId: testOrderId,
-    methodId: 'cod',
-    amount: 149900,
+    methodId: 'cod:pse',
+    amount: 50000,
     status: 'PENDING_COD',
     idempotencyKey: 'attempt:persistence-cod-011',
+    product: 'Producto académico',
+    totalAmount: 149900,
+    balanceAmount: 99900,
   });
   const [first, repeated] = await Promise.all([
     repository.save(transaction),
     repository.save(transaction),
   ]);
   const result = await pool.query(
-    `SELECT transaction_id, method_id, amount, status, COUNT(*) OVER ()::int AS count
+    `SELECT transaction_id, method_id, amount, status, total_amount, balance_amount,
+            COUNT(*) OVER ()::int AS count
      FROM payment_transactions WHERE idempotency_key = $1`,
     [transaction.idempotencyKey],
   );
 
   assert.equal(first.transactionId, repeated.transactionId);
   assert.equal(result.rows.length, 1);
-  assert.equal(result.rows[0].method_id, 'cod');
-  assert.equal(result.rows[0].amount, 149900);
+  assert.equal(result.rows[0].method_id, 'cod:pse');
+  assert.equal(result.rows[0].amount, 50000);
   assert.equal(result.rows[0].status, 'PENDING_COD');
+  assert.equal(result.rows[0].total_amount, 149900);
+  assert.equal(result.rows[0].balance_amount, 99900);
   assert.equal(result.rows[0].count, 1);
 });
 

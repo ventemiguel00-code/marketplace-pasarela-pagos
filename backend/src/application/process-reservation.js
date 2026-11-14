@@ -6,11 +6,15 @@ function reservationError(code, message) {
   return error;
 }
 
-function ensureSameReservationAttempt(transaction, orderId, methodId) {
+function ensureSameAdvanceAttempt(transaction, orderId, methodId, purpose) {
+  const persistedMethodId = purpose === 'cod' ? `cod:${methodId}` : methodId;
+  const hasExpectedPurpose = purpose === 'cod'
+    ? !transaction.reservationStatus
+    : Boolean(transaction.reservationStatus);
   if (
     transaction.orderId !== orderId
-    || transaction.methodId !== methodId
-    || !transaction.reservationStatus
+    || transaction.methodId !== persistedMethodId
+    || !hasExpectedPurpose
   ) {
     throw reservationError(
       'IDEMPOTENCY_KEY_CONFLICT',
@@ -25,7 +29,12 @@ function createProcessReservation({
   paymentProcessorPort,
   transactionRepositoryPort,
 }) {
-  return async function processReservation({ orderId, methodId, idempotencyKey = null } = {}) {
+  return async function processReservation({
+    orderId,
+    methodId,
+    idempotencyKey = null,
+    purpose = 'reservation',
+  } = {}) {
     if (!orderId || !methodId) {
       throw reservationError('INVALID_RESERVATION_REQUEST', 'orderId y methodId son obligatorios');
     }
@@ -42,7 +51,7 @@ function createProcessReservation({
     if (idempotencyKey) {
       const existing = await transactionRepositoryPort.findByIdempotencyKey(idempotencyKey);
       if (existing) {
-        ensureSameReservationAttempt(existing, orderId, methodId);
+        ensureSameAdvanceAttempt(existing, orderId, methodId, purpose);
         existing.isIdempotentReplay = true;
         return existing;
       }
@@ -60,18 +69,21 @@ function createProcessReservation({
       amount: quote.advanceAmount,
     });
     const isApproved = status === 'APPROVED';
+    const isCodAdvance = purpose === 'cod';
     const saved = await transactionRepositoryPort.save(new PaymentTransaction({
       orderId,
-      methodId,
+      methodId: isCodAdvance ? `cod:${methodId}` : methodId,
       amount: quote.advanceAmount,
-      status,
+      status: isCodAdvance && isApproved ? 'PENDING_COD' : status,
       idempotencyKey,
       product: quote.product,
       totalAmount: quote.totalAmount,
       balanceAmount: isApproved ? quote.balanceAmount : quote.totalAmount,
-      reservationStatus: isApproved ? 'CONFIRMED' : 'NOT_CONFIRMED',
+      reservationStatus: isCodAdvance
+        ? null
+        : (isApproved ? 'CONFIRMED' : 'NOT_CONFIRMED'),
     }));
-    ensureSameReservationAttempt(saved, orderId, methodId);
+    ensureSameAdvanceAttempt(saved, orderId, methodId, purpose);
     return saved;
   };
 }

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: marketplace-usc-pagos
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm run start:supabase:main
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: AUTH_JWT_REQUIRED
+        value: "true"
+      - key: AUTH_JWT_ISSUER
+        value: https://xmrlazemifmepyahqsrz.supabase.co/auth/v1
+      - key: AUTH_JWT_AUDIENCE
+        # Debe coincidir exactamente con el claim aud emitido por Login.
+        sync: false
+      - key: AUTH_JWT_JWKS_URL
+        value: https://xmrlazemifmepyahqsrz.supabase.co/auth/v1/.well-known/jwks.json
+      # Deben cargarse en Render como secretos; no van en Git.
+      - key: SUPABASE_PGHOST
+        sync: false
+      - key: SUPABASE_PGPORT
+        sync: false
+      - key: SUPABASE_PGDATABASE
+        sync: false
+      - key: SUPABASE_PGUSER
+        sync: false
+      - key: SUPABASE_PGPASSWORD
+        sync: false
+      - key: SUPABASE_PGSSLROOTCERT_CONTENT
+        sync: false
+      # Origen único del frontend integrado. Sin valor no se habilita CORS.
+      - key: CORS_ALLOWED_ORIGIN
+        sync: false

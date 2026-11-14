@@ -5,6 +5,7 @@ const {
   getUnconfirmedPaymentPresentation,
   getSuccessfulPaymentConfirmation,
   getReservationInformation,
+  getCodAdvanceInformation,
   getTransactionInformation,
   canRetryPayment,
   getPaymentReview,
@@ -190,24 +191,35 @@ test('HU-PG-09: presenta REJECTED como Rechazado sin habilitar edición', () => 
 });
 
 test('HU-PG-11: presenta contra entrega como pendiente y conserva el identificador', () => {
-  assert.deepEqual(getPaymentResultPresentation('PENDING_COD', 'TX-000601'), {
-    title: 'Pago contra entrega pendiente',
-    className: 'pending-cod',
-    transactionText: 'Solicitud: TX-000601',
-  });
-
-  assert.deepEqual(getTransactionInformation({
+  const transaction = {
     transactionId: 'TX-000601',
     orderId: 'ORD-00125',
     methodId: 'cod',
-    amount: 149900,
+    advanceMethodId: 'pse',
+    operationType: 'COD_WITH_ADVANCE',
+    amount: 50000,
+    receivedAmount: 50000,
+    totalAmount: 149900,
+    balanceAmount: 99900,
     status: 'PENDING_COD',
-  }), {
+    codStatus: 'ENABLED',
+  };
+  assert.deepEqual(getPaymentResultPresentation('PENDING_COD', 'TX-000601', transaction), {
+    title: 'Anticipo aprobado · pago contra entrega pendiente',
+    className: 'pending-cod',
+    transactionText: 'Anticipo: TX-000601',
+  });
+
+  assert.deepEqual(getCodAdvanceInformation(transaction), {
     transactionId: 'TX-000601',
     orderId: 'ORD-00125',
-    amount: 149900,
-    methodName: 'Pago contra entrega',
-    statusText: 'Pendiente de pago contra entrega',
+    totalAmount: 149900,
+    requestedAdvanceAmount: 50000,
+    registeredAdvanceAmount: 50000,
+    balanceAmount: 99900,
+    advanceMethodName: 'PSE',
+    advanceStatusText: 'Anticipo aprobado',
+    codStatusText: 'Habilitado · saldo pendiente al recibir',
   });
 });
 
@@ -215,6 +227,32 @@ test('HU-PG-11: contra entrega pendiente no genera éxito ni permite reintento',
   const transaction = { status: 'PENDING_COD' };
   assert.equal(getSuccessfulPaymentConfirmation(transaction), null);
   assert.equal(canRetryPayment(transaction), false);
+});
+
+test('HU-PG-11: un anticipo QR rechazado no habilita contra entrega y permite reintentar', () => {
+  const transaction = {
+    transactionId: 'TX-000602',
+    orderId: 'ORD-00125',
+    methodId: 'cod',
+    advanceMethodId: 'qr',
+    operationType: 'COD_WITH_ADVANCE',
+    amount: 50000,
+    receivedAmount: 0,
+    totalAmount: 149900,
+    balanceAmount: 149900,
+    status: 'REJECTED',
+    codStatus: 'NOT_ENABLED',
+  };
+
+  assert.deepEqual(getPaymentResultPresentation('REJECTED', 'TX-000602', transaction), {
+    title: 'Anticipo rechazado · pago contra entrega no habilitado',
+    className: 'rejected',
+    transactionText: 'Anticipo: TX-000602',
+  });
+  assert.equal(getCodAdvanceInformation(transaction).registeredAdvanceAmount, 0);
+  assert.equal(getCodAdvanceInformation(transaction).balanceAmount, 149900);
+  assert.equal(getCodAdvanceInformation(transaction).codStatusText, 'No habilitado');
+  assert.equal(canRetryPayment(transaction), true);
 });
 
 test('HU-PG-12: un anticipo aprobado no se presenta como pago completo', () => {

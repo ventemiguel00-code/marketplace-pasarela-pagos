@@ -1,33 +1,64 @@
 # Marketplace — Grupo 2 — Pasarela de Pagos
 
-Sprint 1: base técnica, **HU-PG-01 — Ver destinatario, detalle y valor total antes de pagar**,
-**HU-PG-02 — Seleccionar un método de pago** y **HU-PG-03 — Realizar el pago del pedido**.
-**HU-PG-04 — Conocer si el pago fue aprobado o rechazado** completa el Sprint 1.
-Sprint 2 incluye hasta ahora **HU-PG-05 — Conocer el estado del pago si falla la página**
-y **HU-PG-06 — Recibir confirmación de pago exitoso** y
-**HU-PG-07 — Reintentar un pago rechazado** y
-**HU-PG-08 — Verificar, editar o cancelar ante un problema**.
-Sprint 3 comienza con **HU-PG-09 — Consultar información básica de una transacción**.
-Continúa únicamente con **HU-PG-10 — Mostrar un número de contacto para recibir ayuda**.
-También incluye **HU-PG-11 — Permitir pago contra entrega para un cliente nuevo**.
-HU-PG-12 completa el Sprint 3 con **Reservar un producto mediante un anticipo**.
-El procesamiento es simulado y no existe integración con un proveedor bancario.
+Módulo académico desarrollado con HTML, CSS, JavaScript, Node.js, Express y
+PostgreSQL, organizado con arquitectura hexagonal sencilla. Los tres Sprints y sus
+12 historias de usuario están terminados. El procesamiento continúa siendo simulado:
+no existe conexión con bancos ni movimiento de dinero real.
+
+## Funcionalidad terminada
+
+- Sprint 1, HU-PG-01 a HU-PG-04: resumen, PSE o QR, procesamiento simulado y resultado.
+- Sprint 2, HU-PG-05 a HU-PG-08: recuperación, confirmación, reintento y revisión previa.
+- Sprint 3, HU-PG-09 a HU-PG-12: consulta, soporte, contra entrega y reserva con anticipo.
+- PSE produce `APPROVED` y Código QR produce `REJECTED` de forma determinista.
+- Contra entrega exige un anticipo académico de **$50.000 COP** y conserva el saldo.
+- La reserva independiente usa el mismo anticipo, pero no bloquea inventario real.
+- PostgreSQL conserva transacciones e idempotencia sin almacenar datos bancarios.
 
 Este repositorio contiene solamente el código fuente del módulo. La versión portátil,
 sus ejecutables, su PostgreSQL incluido y los respaldos se conservan por separado y
 no deben publicarse en GitHub.
 
-## Documentación para integración
+## Estado de integración
 
 - [Integración propuesta con Contabilidad](docs/INTEGRACION_CONTABILIDAD.md): explica
-  las APIs que ya existen, los estados y una propuesta que todavía debe acordarse con
-  el otro grupo.
+  las APIs, estados y contratos todavía pendientes de aprobación.
 - [Preguntas para el Grupo de Contabilidad](docs/PREGUNTAS_GRUPO_CONTABILIDAD.md):
   lista los datos y decisiones que necesitamos confirmar antes de conectar módulos.
 
-Todavía no hay integración automática, webhooks ni endpoints especiales para
-Contabilidad. El código fuente se publica en este repositorio privado para el
-trabajo académico del Grupo 2.
+El backend incluye adaptadores preparados para Contabilidad y Notificaciones, y un
+puerto para validar propiedad mediante Órdenes. No se invocan automáticamente porque
+siguen pendientes la autenticación entre servicios, la URL definitiva de Órdenes y
+los contratos de comprador y vendedor. No se presentan como conexiones operativas.
+
+La autenticación JWT está preparada para ES256 mediante JWKS. Valida firma, algoritmo,
+emisor, audiencia y vencimiento. La audiencia exacta debe configurarse mediante una
+variable privada cuando el equipo de Login la confirme. Con JWT activo, las operaciones
+sensibles permanecen bloqueadas si Órdenes no puede comprobar la propiedad.
+
+Este es un repositorio público de código fuente. Los archivos `.env`, credenciales,
+respaldos, runtimes y la versión portátil se conservan fuera de GitHub.
+
+## API y Swagger
+
+Además de las rutas históricas `/api/payments`, se ofrecen rutas compatibles con el
+Marketplace sin duplicar casos de uso:
+
+| Método | Ruta | Función |
+|---|---|---|
+| GET | `/health` | Estado técnico del módulo |
+| GET | `/api/payments/methods` | Métodos disponibles |
+| GET | `/api/payments/summary/:orderId` | Resumen de compra |
+| POST | `/api/payments` | Procesamiento original |
+| GET | `/api/payments/transactions/:transactionId` | Consulta original |
+| POST | `/api/pagos/procesar` | Procesamiento compatible con el Marketplace |
+| GET | `/api/pagos/:id` | Consulta compatible con el Marketplace |
+| GET | `/api/payments/reservations/quote/:orderId` | Cotización del anticipo |
+| POST | `/api/payments/reservations` | Procesamiento del anticipo |
+
+Las escrituras aceptan `Idempotency-Key`. La primera operación devuelve `201`; una
+repetición idéntica devuelve `200`, y reutilizar la clave con otros datos devuelve
+`409`. Swagger está disponible en `http://127.0.0.1:3000/docs`.
 
 ## Ejecutar localmente
 
@@ -229,35 +260,37 @@ tablas, migraciones ni endpoints.
 ## HU-PG-10
 
 Al final de la página aparece una tarjeta «¿Necesitas ayuda con tu pago?». El número
-oficial todavía no está confirmado, por lo que la interfaz muestra «Número de soporte
-pendiente por definir» y no crea enlaces de llamada o WhatsApp que aparenten funcionar.
-
-Cuando el Marketplace autorice un número, se configura en
-`frontend/js/support-contact.js`, en la constante `SUPPORT_PHONE`, usando formato
-internacional: signo `+`, código del país y número completo. Un valor válido se muestra
-como contacto de soporte y habilita un enlace `tel:` para llamar. Un valor vacío o
-inválido conserva el mensaje pendiente y no genera enlaces. Esta función es solo
-informativa: no consulta PostgreSQL, no registra compradores ni procesa pagos.
+de soporte autorizado se configura en `frontend/js/support-contact.js` y permite abrir
+WhatsApp. Esta función es informativa: no consulta PostgreSQL, no registra compradores
+ni procesa pagos. Si la configuración es inválida, no genera un enlace funcional.
 
 ## HU-PG-11
 
+> **Adaptación posterior para integración:** la versión inicial del Sprint 3 permitía
+> registrar la solicitud contra entrega sin anticipo. La regla vigente fue modificada
+> después, con autorización expresa, para exigir primero un anticipo académico de
+> $50.000 COP. Este cambio no altera ni fusiona HU-PG-12.
+
 La interfaz permite activar «Simular cliente nuevo». Esta opción es únicamente una
 demostración académica: el proyecto no tiene registro de usuarios, autenticación ni
-historial real de compradores. Al activarla aparece «Pago contra entrega» junto con
-PSE y Código QR. Antes de confirmar se explica que el dinero se pagará cuando se
-reciba el producto.
+historial real de compradores. Al activarla aparece «Pago contra entrega» y se muestra
+el total, el anticipo obligatorio y el saldo al recibir. El anticipo se simula con PSE
+o Código QR usando la misma política de $50.000 COP de HU-PG-12.
 
-La solicitud utiliza el mismo `POST /api/payments`, conserva `Idempotency-Key` y se
-guarda en `payment_transactions` con `method_id = 'cod'` y estado `PENDING_COD`.
-Este estado se muestra como «Pendiente de pago contra entrega». No significa que el
-pago fue recibido, no genera «¡Pago realizado con éxito!» y no reutiliza los estados
-`APPROVED` o `REJECTED`. La consulta posterior usa el endpoint existente
+La solicitud utiliza el mismo `POST /api/payments`, conserva `Idempotency-Key` y exige
+`advanceMethodId` con `pse` o `qr`. PSE registra una sola fila con `amount = 50000`,
+estado `PENDING_COD`, total de 149900 y saldo de 99900. El método persistido
+`cod:pse` distingue la modalidad y el medio del anticipo. Código QR registra el intento
+como `REJECTED`, con importe recibido cero, saldo completo y contra entrega no
+habilitado. Nunca se guardan 149900 como dinero recibido.
+
+La respuesta pública conserva `methodId = 'cod'` y añade `advanceMethodId`,
+`receivedAmount`, total, saldo y estado de habilitación. La consulta posterior usa
 `GET /api/payments/transactions/:transactionId` y no crea registros adicionales.
 
-La migración amplía de forma repetible la restricción de estados para aceptar
-`PENDING_COD`; conserva las filas, índices y claves de idempotencia existentes. No se
-creó otra tabla porque el registro actual ya contiene pedido, método, monto, estado,
-identificador y fecha necesarios para distinguir la solicitud pendiente.
+No se necesitó una migración adicional: se reutilizan los campos opcionales de total,
+saldo y producto existentes. La obligación pendiente y el anticipo forman una sola
+transacción, evitando contabilizar dos veces el mismo abono.
 
 La integración con Envíos queda pendiente. En el futuro ambos módulos deberán acordar
 como mínimo el identificador del pedido, el identificador de la solicitud, el monto,
@@ -300,6 +333,14 @@ anticipo confirmado, saldo y estado; todavía no se descuentan unidades.
   implementa el contrato y devuelve una instancia del modelo.
 - `backend/src/adapters/http/app.js`: traduce la consulta HTTP a una llamada al caso
   de uso y responde JSON, con 200 o 404.
+- `backend/src/adapters/http/jwt-authentication.js`: valida JWT ES256 mediante JWKS.
+- `backend/src/adapters/http/request-authorization.js`: exige propiedad del pedido o
+  bloquea de forma segura cuando Órdenes aún no puede comprobarla.
+- `backend/src/adapters/http/openapi.js`: contrato OpenAPI servido en `/docs`.
+- `backend/src/adapters/http/accounting-escrow-client.js` y
+  `notifications-client.js`: adaptadores preparados, todavía no conectados a los casos
+  de uso para evitar efectos externos sin contrato autorizado.
+- `backend/src/ports/order-ownership-port.js`: contrato pendiente con Órdenes.
 - `backend/src/domain/payment-method.js`: representación pública de un método.
 - `backend/src/ports/payment-method-port.js`: contrato para consultar métodos.
 - `backend/src/application/get-payment-methods.js`: caso de uso de consulta.
@@ -310,11 +351,13 @@ anticipo confirmado, saldo y estado; todavía no se descuentan unidades.
 - `backend/src/ports/payment-processor-port.js`: contrato del proveedor de pago.
 - `backend/src/ports/payment-transaction-repository-port.js`: contrato de persistencia.
 - `backend/src/application/process-payment.js`: valida, procesa y registra el pago;
-  para contra entrega exige el marcador académico de cliente nuevo.
+  para contra entrega exige el marcador académico de cliente nuevo y delega el
+  anticipo obligatorio al procesamiento compartido.
 - `backend/src/application/get-reservation-quote.js`: prepara producto, total, anticipo
   y saldo usando datos del backend.
-- `backend/src/application/process-reservation.js`: procesa el anticipo, define el
-  estado académico de la reserva y reutiliza la idempotencia.
+- `backend/src/application/process-reservation.js`: procesa anticipos para la reserva
+  independiente o para contra entrega, diferenciando el propósito y reutilizando la
+  misma política, simulador e idempotencia.
 - `backend/src/ports/reservation-policy-port.js`: contrato de la regla de anticipo.
 - `backend/src/adapters/local/academic-reservation-policy.js`: regla académica fija de
   $50.000 COP, reemplazable cuando exista una regla oficial.
@@ -332,6 +375,8 @@ anticipo confirmado, saldo y estado; todavía no se descuentan unidades.
   del contacto de ayuda de HU-PG-10, separada del procesamiento de pagos.
 - `backend/src/server.js`: conecta adaptador local, caso de uso y aplicación HTTP.
 - `backend/src/adapters/persistence/postgres.js`: conexión PostgreSQL existente.
+- `frontend/js/auth-bridge.js`: recibe el token desde el Login central sin inventarlo
+  ni guardarlo como credencial propia.
 - `frontend/index.html`, `css/styles.css`, `js/app.js`: presentación y consulta REST.
 
 El dominio y el caso de uso no dependen de Express ni PostgreSQL. Para consultar
@@ -367,6 +412,29 @@ No crea ni modifica tablas. `/health` verifica HTTP independientemente de la bas
 Ante ECONNREFUSED, revisa el servicio y puerto; ante 28P01, las credenciales;
 ante 3D000, la existencia de la base.
 
+### Supabase opcional
+
+PostgreSQL local sigue disponible. Para Supabase se usan variables `SUPABASE_PG*`,
+TLS con certificado verificado y roles restringidos. Copia
+`backend/.env.supabase.example` a un archivo local ignorado y completa allí las
+credenciales; nunca las escribas en el repositorio.
+
+Las migraciones versionadas en `supabase/migrations` preparan:
+
+- `public.payment_transactions` con restricciones e idempotencia.
+- Rol de backend `pagos_backend`, sin permiso de eliminación.
+- Esquema aislado `pagos_test` y rol limitado para pruebas de escritura.
+
+Los scripts `db:check:supabase:main`, `db:verify:supabase` y
+`test:supabase:test` comprueban conexión, integridad y aislamiento. No deben ejecutarse
+sin sus archivos privados de entorno.
+
+## Preparación de Render
+
+`render.yaml` define el servicio Node.js, `/health`, JWT obligatorio y variables
+privadas para PostgreSQL, TLS, audiencia JWT y CORS. El archivo prepara el despliegue,
+pero este repositorio no confirma que exista una instancia activa en Render.
+
 En otro equipo Windows, usa el [instalador oficial](https://www.postgresql.org/download/windows/)
 con PostgreSQL Server, pgAdmin y Command Line Tools. Define la clave de postgres,
 conserva el puerto 5432 y comprueba el servicio en `services.msc`. Stack Builder
@@ -389,9 +457,11 @@ $headers = @{ 'Idempotency-Key' = 'attempt:demo-pse-001' }
 Invoke-RestMethod http://127.0.0.1:3000/api/payments -Method Post -Headers $headers -ContentType 'application/json' -Body $body
 ```
 
-Última verificación antes de preparar el proyecto para GitHub:
+Última verificación antes de actualizar GitHub:
 
-- `npm test`: 59/59 PASS para HU-PG-01 a HU-PG-12.
+- `npm test`: 76/76 PASS para HU-PG-01 a HU-PG-12 e integración preparada.
+- `npm run test:supabase:test`: 76/76 PASS usando únicamente `pagos_test`.
+- `npm audit --omit=dev`: 0 vulnerabilidades conocidas.
 - `npm run db:check`: conexión real correcta con `SELECT 1`.
 - `/health`: HTTP 200 con `{"status":"ok","module":"payments"}`.
 - Frontend, resumen, métodos, consulta de transacciones y cotización de anticipo:
@@ -407,6 +477,6 @@ aprobado» y el identificador; al recargar y usar Código QR debe aparecer «Pag
 rechazado» y un nuevo identificador.
 
 Sprint 1, Sprint 2 y las cuatro historias del Sprint 3 están terminados funcionalmente.
-La copia portátil se distribuye por separado y no forma parte del repositorio de código
-fuente. La integración real con otros grupos y el Excel del Sprint 3 son tareas
-independientes.
+La copia portátil se distribuye por separado y no forma parte del repositorio. La
+integración real con Login, Órdenes, Contabilidad y Notificaciones permanece pendiente;
+los adaptadores presentes no realizan llamadas automáticas.

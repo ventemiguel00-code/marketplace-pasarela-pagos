@@ -1,0 +1,38 @@
+-- Fase 3: estructura compatible para Supabase.
+-- Esta migración es idempotente: documenta la estructura creada en Fase 2 y
+-- puede aplicarse en un proyecto nuevo sin borrar ni importar transacciones.
+-- La importación de los 16 registros históricos requiere autorización aparte.
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.payment_transactions (
+  id BIGSERIAL PRIMARY KEY,
+  transaction_id VARCHAR(20) UNIQUE,
+  order_id VARCHAR(50) NOT NULL,
+  method_id VARCHAR(20) NOT NULL,
+  amount INTEGER NOT NULL CHECK (amount >= 0),
+  status VARCHAR(20) NOT NULL CHECK (status IN ('APPROVED', 'REJECTED', 'PENDING_COD')),
+  idempotency_key VARCHAR(100),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  product_name VARCHAR(200),
+  total_amount INTEGER CHECK (total_amount IS NULL OR total_amount > 0),
+  balance_amount INTEGER CHECK (balance_amount IS NULL OR balance_amount >= 0),
+  reservation_status VARCHAR(30)
+    CHECK (reservation_status IS NULL OR reservation_status IN ('CONFIRMED', 'NOT_CONFIRMED')),
+  operation_type VARCHAR(30) GENERATED ALWAYS AS (
+    CASE
+      WHEN method_id LIKE 'cod:%' OR status = 'PENDING_COD' THEN 'COD_ADVANCE'
+      WHEN reservation_status IS NOT NULL THEN 'RESERVATION_ADVANCE'
+      ELSE 'PAYMENT'
+    END
+  ) STORED
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS payment_transactions_idempotency_key_unique
+  ON public.payment_transactions (idempotency_key);
+
+ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.payment_transactions FROM anon, authenticated;
+REVOKE ALL ON SEQUENCE public.payment_transactions_id_seq FROM anon, authenticated;
+
+COMMIT;

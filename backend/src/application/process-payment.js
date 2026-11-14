@@ -20,12 +20,14 @@ function createProcessPayment({
   paymentMethodPort,
   paymentProcessorPort,
   transactionRepositoryPort,
+  processAdvance = null,
 }) {
   return async function processPayment({
     orderId,
     methodId,
     idempotencyKey = null,
     customerType = null,
+    advanceMethodId = null,
   } = {}) {
     if (!orderId || !methodId) {
       throw paymentError('INVALID_PAYMENT_REQUEST', 'orderId y methodId son obligatorios');
@@ -38,6 +40,28 @@ function createProcessPayment({
         'COD_REQUIRES_NEW_CUSTOMER_DEMO',
         'Activa la simulación de cliente nuevo para usar pago contra entrega',
       );
+    }
+
+    if (methodId === 'cod') {
+      if (!processAdvance) {
+        throw paymentError('COD_ADVANCE_NOT_CONFIGURED', 'El anticipo no está disponible');
+      }
+      if (!['pse', 'qr'].includes(advanceMethodId)) {
+        throw paymentError(
+          'COD_ADVANCE_METHOD_REQUIRED',
+          'Selecciona PSE o Código QR para realizar el anticipo obligatorio',
+        );
+      }
+      const methods = await paymentMethodPort.findAll();
+      if (!methods.some((method) => method.id === 'cod')) {
+        throw paymentError('METHOD_NOT_AVAILABLE', 'Método de pago no disponible');
+      }
+      return processAdvance({
+        orderId,
+        methodId: advanceMethodId,
+        idempotencyKey,
+        purpose: 'cod',
+      });
     }
 
     if (idempotencyKey) {
