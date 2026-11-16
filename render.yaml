@@ -1,10 +1,11 @@
 services:
   - type: web
-    name: marketplace-usc-pagos
+    name: marketplace-usc-pagos-staging
     runtime: node
     rootDir: backend
     buildCommand: npm ci
-    startCommand: npm run start:supabase:main
+    # STAGING usa exclusivamente pagos_test; nunca public.payment_transactions.
+    startCommand: npm run start:supabase:test
     healthCheckPath: /health
     envVars:
       - key: HOST
@@ -14,8 +15,8 @@ services:
       - key: AUTH_JWT_ISSUER
         value: https://xmrlazemifmepyahqsrz.supabase.co/auth/v1
       - key: AUTH_JWT_AUDIENCE
-        # Debe coincidir exactamente con el claim aud emitido por Login.
-        sync: false
+        # Bloqueo temporal: no corresponde a la audiencia oficial de Login.
+        value: staging-blocked-audience-not-official
       - key: AUTH_JWT_JWKS_URL
         value: https://xmrlazemifmepyahqsrz.supabase.co/auth/v1/.well-known/jwks.json
       # Deben cargarse en Render como secretos; no van en Git.
@@ -31,6 +32,8 @@ services:
         sync: false
       - key: SUPABASE_PGSSLROOTCERT_CONTENT
         sync: false
+      - key: SUPABASE_PGSCHEMA
+        value: pagos_test
       # Origen único del frontend integrado. Sin valor no se habilita CORS.
       - key: CORS_ALLOWED_ORIGIN
         sync: false
