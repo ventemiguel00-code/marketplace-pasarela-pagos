@@ -24,8 +24,11 @@ function createJwtAuthentication({
   if (!issuer || !audience || (!jwksUrl && !keySet)) {
     throw new Error('JWT requiere issuer, audience y JWKS configurados.');
   }
-  if (!Array.isArray(algorithms) || algorithms.length === 0) {
-    throw new Error('JWT requiere al menos un algoritmo permitido.');
+  if (!Array.isArray(algorithms) || algorithms.length !== 1 || algorithms[0] !== 'ES256') {
+    throw new Error('JWT solo permite el algoritmo ES256.');
+  }
+  if (!keySet && new URL(jwksUrl).protocol !== 'https:') {
+    throw new Error('JWT requiere una URL JWKS con HTTPS.');
   }
 
   let remoteKeySet;

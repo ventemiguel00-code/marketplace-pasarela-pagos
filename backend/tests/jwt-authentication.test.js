@@ -4,6 +4,9 @@ const express = require('express');
 const { createJwtAuthentication } = require('../src/adapters/http/jwt-authentication');
 
 let privateKey;
+let publicKey;
+let rotatedPrivateKey;
+let rotatedPublicKey;
 let keySet;
 let SignJWT;
 let hmacSecret;
@@ -18,25 +21,43 @@ before(async () => {
   publicJwk.alg = 'ES256';
   publicJwk.use = 'sig';
   privateKey = pair.privateKey;
+  publicKey = pair.publicKey;
   keySet = jose.createLocalJWKSet({ keys: [publicJwk] });
+  const rotatedPair = await jose.generateKeyPair('ES256');
+  rotatedPrivateKey = rotatedPair.privateKey;
+  rotatedPublicKey = rotatedPair.publicKey;
   SignJWT = jose.SignJWT;
   hmacSecret = await jose.generateSecret('HS256');
 });
 
-async function createToken({ expiresAt = '5m', issuerValue = issuer, audienceValue = audience } = {}) {
-  return new SignJWT({ role: 'authenticated' })
-    .setProtectedHeader({ alg: 'ES256', kid: 'test-key' })
+async function createToken({
+  expiresAt = '5m',
+  issuerValue = issuer,
+  audienceValue = audience,
+  kid = 'test-key',
+  signingKey = privateKey,
+  notBefore = null,
+} = {}) {
+  let token = new SignJWT({ role: 'authenticated' })
+    .setProtectedHeader({ alg: 'ES256', kid })
     .setSubject('buyer-123')
     .setIssuer(issuerValue)
     .setAudience(audienceValue)
     .setIssuedAt()
-    .setExpirationTime(expiresAt)
-    .sign(privateKey);
+    .setExpirationTime(expiresAt);
+  if (notBefore) token = token.setNotBefore(notBefore);
+  return token.sign(signingKey);
 }
 
-async function request(token) {
+async function request(token, authenticationOptions = {}) {
   const app = express();
-  app.get('/private', createJwtAuthentication({ required: true, issuer, audience, keySet }), (req, res) => {
+  app.get('/private', createJwtAuthentication({
+    required: true,
+    issuer,
+    audience,
+    keySet,
+    ...authenticationOptions,
+  }), (req, res) => {
     res.json({ subject: req.auth.subject });
   });
   const server = app.listen(0, '127.0.0.1');
@@ -77,4 +98,45 @@ test('Fase 9C: JWT con algoritmo no permitido devuelve 401', async () => {
     .setExpirationTime('5m')
     .sign(hmacSecret);
   assert.equal((await request(token)).status, 401);
+});
+
+test('Fase 14: rechaza firma manipulada, nbf futuro y kid desconocido', async () => {
+  const validToken = await createToken();
+  const lastCharacter = validToken.at(-1) === 'A' ? 'B' : 'A';
+  const tamperedToken = `${validToken.slice(0, -1)}${lastCharacter}`;
+  assert.equal((await request(tamperedToken)).status, 401);
+  assert.equal((await request(await createToken({ notBefore: '5m' }))).status, 401);
+  assert.equal((await request(await createToken({ kid: 'unknown-key' }))).status, 401);
+});
+
+test('Fase 14: rechaza de forma segura cuando el JWKS no está disponible', async () => {
+  const unavailableKeySet = async () => {
+    throw new Error('JWKS temporalmente no disponible');
+  };
+  assert.equal((await request(await createToken(), { keySet: unavailableKeySet })).status, 401);
+});
+
+test('Fase 14: admite rotación a otra clave ES256 confiable por kid', async () => {
+  const rotatingKeySet = async (protectedHeader) => {
+    if (protectedHeader.kid === 'test-key') return publicKey;
+    if (protectedHeader.kid === 'rotated-key') return rotatedPublicKey;
+    throw new Error('kid no confiable');
+  };
+  assert.equal((await request(await createToken(), { keySet: rotatingKeySet })).status, 200);
+  assert.equal((await request(await createToken({
+    kid: 'rotated-key',
+    signingKey: rotatedPrivateKey,
+  }), { keySet: rotatingKeySet })).status, 200);
+});
+
+test('Fase 14: la configuración impide algoritmos distintos y JWKS remoto sin TLS', () => {
+  assert.throws(() => createJwtAuthentication({
+    required: true, issuer, audience, keySet, algorithms: ['HS256'],
+  }), /solo permite el algoritmo ES256/);
+  assert.throws(() => createJwtAuthentication({
+    required: true,
+    issuer,
+    audience,
+    jwksUrl: 'http://login.example.test/.well-known/jwks.json',
+  }), /URL JWKS con HTTPS/);
 });
