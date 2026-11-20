@@ -102,8 +102,11 @@ test('Fase 9C: JWT con algoritmo no permitido devuelve 401', async () => {
 
 test('Fase 14: rechaza firma manipulada, nbf futuro y kid desconocido', async () => {
   const validToken = await createToken();
-  const lastCharacter = validToken.at(-1) === 'A' ? 'B' : 'A';
-  const tamperedToken = `${validToken.slice(0, -1)}${lastCharacter}`;
+  const [header, payload, signature] = validToken.split('.');
+  // Cambia bits significativos de la firma. El último carácter Base64URL puede
+  // contener bits de relleno y no siempre altera los bytes decodificados.
+  const firstCharacter = signature[0] === 'A' ? 'B' : 'A';
+  const tamperedToken = `${header}.${payload}.${firstCharacter}${signature.slice(1)}`;
   assert.equal((await request(tamperedToken)).status, 401);
   assert.equal((await request(await createToken({ notBefore: '5m' }))).status, 401);
   assert.equal((await request(await createToken({ kid: 'unknown-key' }))).status, 401);
