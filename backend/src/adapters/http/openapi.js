@@ -3,7 +3,7 @@ const openApiDocument = {
   info: {
     title: 'Marketplace USC - Pasarela de Pagos',
     version: '1.0.0',
-    description: 'Los pagos son simulados. El Login Central y la lectura/autorización con Órdenes están habilitados en STAGING. Las escrituras hacia Contabilidad, Notificaciones, Inventario y Seguimiento permanecen desactivadas hasta validar sus contratos operativos.',
+    description: 'Los pagos son simulados. El Login Central, la lectura/autorización con Órdenes y las escrituras coordinadas hacia Órdenes, Contabilidad y Notificaciones están habilitados en STAGING mediante una outbox durable. Inventario y Seguimiento conservan su responsabilidad logística posterior y no son actualizados directamente por Pagos.',
   },
   servers: [{ url: '/' }],
   components: {
