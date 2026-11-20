@@ -25,6 +25,7 @@
     "start:supabase:test": "node scripts/start-supabase-test.js",
     "test:supabase:test": "node scripts/test-supabase-test.js",
     "db:provision:supabase:main": "node scripts/provision-supabase-backend-role.js",
+    "db:provision:supabase:main:outbox": "node scripts/provision-supabase-main-outbox.js",
     "db:check:supabase:main": "node scripts/check-supabase-main.js",
     "start:supabase:main": "node scripts/start-supabase-main.js"
   },

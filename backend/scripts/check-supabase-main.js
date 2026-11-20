@@ -13,8 +13,22 @@ async function main() {
       has_table_privilege('public.payment_transactions', 'INSERT') AS can_insert,
       has_table_privilege('public.payment_transactions', 'UPDATE') AS can_update,
       has_table_privilege('public.payment_transactions', 'DELETE') AS can_delete,
+      to_regclass('public.integration_outbox') IS NOT NULL AS outbox_exists,
       (SELECT c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
        WHERE n.nspname = 'public' AND c.relname = 'payment_transactions') AS rls_enabled`);
+    let outbox = {
+      outbox_can_select: false, outbox_can_insert: false,
+      outbox_can_update: false, outbox_can_delete: false, outbox_rows: 0,
+    };
+    if (result.rows[0].outbox_exists) {
+      const outboxResult = await pool.query(`SELECT
+        has_table_privilege('public.integration_outbox', 'SELECT') AS outbox_can_select,
+        has_table_privilege('public.integration_outbox', 'INSERT') AS outbox_can_insert,
+        has_table_privilege('public.integration_outbox', 'UPDATE') AS outbox_can_update,
+        has_table_privilege('public.integration_outbox', 'DELETE') AS outbox_can_delete,
+        (SELECT COUNT(*)::int FROM public.integration_outbox) AS outbox_rows`);
+      outbox = outboxResult.rows[0];
+    }
     let testSchemaBlocked = false;
     try {
       await pool.query('SELECT COUNT(*) FROM pagos_test.payment_transactions');
@@ -22,7 +36,7 @@ async function main() {
       testSchemaBlocked = error.code === '42501';
     }
     if (!testSchemaBlocked) throw new Error('El rol de backend puede acceder al esquema de pruebas.');
-    console.log(JSON.stringify({ ...result.rows[0], testSchemaBlocked }, null, 2));
+    console.log(JSON.stringify({ ...result.rows[0], ...outbox, testSchemaBlocked }, null, 2));
   } finally {
     await pool.end();
   }
