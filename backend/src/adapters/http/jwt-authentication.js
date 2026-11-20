@@ -48,7 +48,9 @@ function createJwtAuthentication({
         algorithms,
       });
       if (typeof payload.sub !== 'string' || payload.sub.length === 0) return unauthorized(res);
-      req.auth = { subject: payload.sub, roles: payload.role ? [payload.role] : [] };
+      // El token solo vive durante esta solicitud para reenviarlo a servicios
+      // que también validan la identidad. Nunca se persiste ni se registra.
+      req.auth = { subject: payload.sub, roles: payload.role ? [payload.role] : [], accessToken: token };
       return next();
     } catch {
       return unauthorized(res);

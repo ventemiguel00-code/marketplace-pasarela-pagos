@@ -80,6 +80,7 @@ function createNotificationsClient({
         throw integrationError('INVALID_NOTIFICATIONS_RESPONSE', 'Notificaciones no devolvió JSON válido.', { cause: error });
       }
       assertNotificationResponse(data);
+      Object.defineProperty(data, '_httpStatus', { value: response.status, enumerable: false });
       return data;
     },
   };

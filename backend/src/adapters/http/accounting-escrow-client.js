@@ -77,6 +77,7 @@ function createAccountingEscrowClient({
         throw integrationError('INVALID_ACCOUNTING_RESPONSE', 'Contabilidad no devolvió JSON válido.', { cause: error });
       }
       assertEscrowResponse(data);
+      Object.defineProperty(data, '_httpStatus', { value: response.status, enumerable: false });
       return data;
     },
   };

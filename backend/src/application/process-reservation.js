@@ -28,12 +28,14 @@ function createProcessReservation({
   paymentMethodPort,
   paymentProcessorPort,
   transactionRepositoryPort,
+  recordIntegrations = null,
 }) {
   return async function processReservation({
     orderId,
     methodId,
     idempotencyKey = null,
     purpose = 'reservation',
+    authContext = {},
   } = {}) {
     if (!orderId || !methodId) {
       throw reservationError('INVALID_RESERVATION_REQUEST', 'orderId y methodId son obligatorios');
@@ -53,6 +55,10 @@ function createProcessReservation({
       if (existing) {
         ensureSameAdvanceAttempt(existing, orderId, methodId, purpose);
         existing.isIdempotentReplay = true;
+        if (recordIntegrations) {
+          const quote = await getReservationQuote(orderId, authContext);
+          await recordIntegrations({ transaction: existing, orderSummary: quote, operationType: purpose === 'cod' ? 'COD_ADVANCE' : 'RESERVATION_ADVANCE', authContext });
+        }
         return existing;
       }
     }
@@ -62,7 +68,7 @@ function createProcessReservation({
       throw reservationError('RESERVATION_METHOD_NOT_AVAILABLE', 'Método no disponible');
     }
 
-    const quote = await getReservationQuote(orderId);
+    const quote = await getReservationQuote(orderId, authContext);
     const status = await paymentProcessorPort.process({
       orderId,
       methodId,
@@ -84,6 +90,9 @@ function createProcessReservation({
         : (isApproved ? 'CONFIRMED' : 'NOT_CONFIRMED'),
     }));
     ensureSameAdvanceAttempt(saved, orderId, methodId, purpose);
+    if (recordIntegrations) {
+      await recordIntegrations({ transaction: saved, orderSummary: quote, operationType: isCodAdvance ? 'COD_ADVANCE' : 'RESERVATION_ADVANCE', authContext });
+    }
     return saved;
   };
 }

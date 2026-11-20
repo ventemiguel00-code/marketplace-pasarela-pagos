@@ -14,16 +14,52 @@ const createPostgresTransactionRepository = require('./adapters/persistence/post
 const { createPool } = require('./adapters/persistence/postgres');
 const { createJwtAuthentication } = require('./adapters/http/jwt-authentication');
 const { createRequestAuthorization } = require('./adapters/http/request-authorization');
+const { createOrdersClient } = require('./adapters/http/orders-client');
+const { createAccountingEscrowClient } = require('./adapters/http/accounting-escrow-client');
+const { createNotificationsClient } = require('./adapters/http/notifications-client');
+const { createInventoryClient } = require('./adapters/http/inventory-client');
+const { createTrackingClient } = require('./adapters/http/tracking-client');
+const createPostgresIntegrationOutbox = require('./adapters/persistence/postgres-integration-outbox');
+const { createIntegrationDispatcher } = require('./application/dispatch-integration-events');
+const { createRecordPaymentIntegrations } = require('./application/record-payment-integrations');
 
 // Composición: los adaptadores locales pueden sustituirse por integraciones reales.
 const pool = createPool();
 const transactionRepository = createPostgresTransactionRepository(pool);
-const getReservationQuote = createGetReservationQuote(localOrderSummary, academicReservationPolicy);
+const ordersReadEnabled = process.env.ORDERS_INTEGRATION_ENABLED === 'true';
+const externalWritesEnabled = process.env.PAYMENT_INTEGRATIONS_WRITE_ENABLED === 'true';
+const outboxEnabled = process.env.INTEGRATION_OUTBOX_ENABLED === 'true';
+const ordersClient = createOrdersClient({
+  baseUrl: process.env.ORDERS_BASE_URL,
+  enabled: ordersReadEnabled || externalWritesEnabled,
+});
+const orderSummaryPort = ordersReadEnabled ? ordersClient : localOrderSummary;
+const outbox = outboxEnabled ? createPostgresIntegrationOutbox(pool) : null;
+let recordIntegrations = null;
+if (outbox) {
+  const dispatcher = externalWritesEnabled ? createIntegrationDispatcher({
+    outboxPort: outbox,
+    accounting: createAccountingEscrowClient({ baseUrl: process.env.ACCOUNTING_BASE_URL, enabled: true }),
+    notifications: createNotificationsClient({ baseUrl: process.env.NOTIFICATIONS_BASE_URL, enabled: true }),
+    orders: ordersClient,
+    inventory: createInventoryClient({ baseUrl: process.env.INVENTORY_BASE_URL, enabled: true }),
+    tracking: createTrackingClient({ baseUrl: process.env.TRACKING_BASE_URL, enabled: true }),
+  }) : null;
+  recordIntegrations = createRecordPaymentIntegrations({
+    outboxPort: outbox,
+    dispatcher,
+    confirmedOrderStatus: process.env.ORDERS_APPROVED_STATUS || null,
+    inventoryResponsibility: process.env.INVENTORY_CONFIRMATION_BY_PAYMENTS === 'true',
+    trackingStatus: process.env.TRACKING_PAYMENT_STATUS || null,
+  });
+}
+const getReservationQuote = createGetReservationQuote(orderSummaryPort, academicReservationPolicy);
 const processReservation = createProcessReservation({
   getReservationQuote,
   paymentMethodPort: localPaymentMethods,
   paymentProcessorPort: simulatedPaymentProcessor,
   transactionRepositoryPort: transactionRepository,
+  recordIntegrations,
 });
 // La autenticación queda desactivada en la demostración local. Al habilitarla,
 // la capa HTTP valida el JWT antes de entrar en los casos de uso.
@@ -34,18 +70,25 @@ const authenticateBuyer = createJwtAuthentication({
   jwksUrl: process.env.AUTH_JWT_JWKS_URL,
   algorithms: ['ES256'],
 });
-// Órdenes aún no ha entregado su contrato de propiedad. En modo JWT el
-// middleware responderá 503 en vez de asumir que una orden es del comprador.
-const requestAuthorization = createRequestAuthorization();
+const orderOwnershipPort = ordersReadEnabled ? {
+  isOrderOwnedBy: (input) => ordersClient.isOrderOwnedBy(input),
+  async isTransactionOwnedBy({ transactionId, buyerSubject, accessToken }) {
+    const transaction = await transactionRepository.findByTransactionId(transactionId);
+    if (!transaction) return false;
+    return ordersClient.isOrderOwnedBy({ orderId: transaction.orderId, buyerSubject, accessToken });
+  },
+} : null;
+const requestAuthorization = createRequestAuthorization({ orderOwnershipPort });
 const app = createApp(
-  createGetPaymentSummary(localOrderSummary),
+  createGetPaymentSummary(orderSummaryPort),
   createGetPaymentMethods(localPaymentMethods),
   createProcessPayment({
-    orderSummaryPort: localOrderSummary,
+    orderSummaryPort,
     paymentMethodPort: localPaymentMethods,
     paymentProcessorPort: simulatedPaymentProcessor,
     transactionRepositoryPort: transactionRepository,
     processAdvance: processReservation,
+    recordIntegrations,
   }),
   createGetPaymentStatus(transactionRepository),
   getReservationQuote,

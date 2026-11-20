@@ -11,6 +11,10 @@ async function main() {
     __dirname,
     '../../supabase/migrations/20261112140620_create_pagos_test_schema.sql',
   );
+  const outboxMigrationPath = path.resolve(
+    __dirname,
+    '../../supabase/migrations/20261120120000_create_pagos_test_integration_outbox.sql',
+  );
   const testPassword = crypto.randomBytes(32).toString('base64url');
   // El Session Pooler de Supabase identifica el proyecto con el sufijo del
   // usuario (rol.project-ref). Conservamos ese sufijo para el rol de pruebas.
@@ -20,6 +24,7 @@ async function main() {
 
   try {
     await pool.query(fs.readFileSync(migrationPath, 'utf8'));
+    await pool.query(fs.readFileSync(outboxMigrationPath, 'utf8'));
     await pool.query(`ALTER ROLE pagos_test_runner LOGIN PASSWORD '${testPassword}'`);
 
     const testEnvironment = [

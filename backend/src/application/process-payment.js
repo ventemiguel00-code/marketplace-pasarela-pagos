@@ -21,6 +21,7 @@ function createProcessPayment({
   paymentProcessorPort,
   transactionRepositoryPort,
   processAdvance = null,
+  recordIntegrations = null,
 }) {
   return async function processPayment({
     orderId,
@@ -28,6 +29,7 @@ function createProcessPayment({
     idempotencyKey = null,
     customerType = null,
     advanceMethodId = null,
+    authContext = {},
   } = {}) {
     if (!orderId || !methodId) {
       throw paymentError('INVALID_PAYMENT_REQUEST', 'orderId y methodId son obligatorios');
@@ -61,6 +63,7 @@ function createProcessPayment({
         methodId: advanceMethodId,
         idempotencyKey,
         purpose: 'cod',
+        authContext,
       });
     }
 
@@ -69,11 +72,15 @@ function createProcessPayment({
       if (existing) {
         ensureSameAttempt(existing, orderId, methodId);
         existing.isIdempotentReplay = true;
+        if (recordIntegrations) {
+          const replaySummary = await orderSummaryPort.findByOrderId(orderId, authContext);
+          await recordIntegrations({ transaction: existing, orderSummary: replaySummary, authContext });
+        }
         return existing;
       }
     }
 
-    const summary = await orderSummaryPort.findByOrderId(orderId);
+    const summary = await orderSummaryPort.findByOrderId(orderId, authContext);
     if (!summary) {
       throw paymentError('ORDER_NOT_FOUND', 'Orden no encontrada');
     }
@@ -97,6 +104,9 @@ function createProcessPayment({
       idempotencyKey,
     }));
     ensureSameAttempt(saved, orderId, methodId);
+    if (recordIntegrations) {
+      await recordIntegrations({ transaction: saved, orderSummary: summary, authContext });
+    }
     return saved;
   };
 }

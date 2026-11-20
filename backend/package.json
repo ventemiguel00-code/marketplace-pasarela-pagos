@@ -21,6 +21,7 @@
     "db:provision:supabase:test": "node scripts/provision-supabase-test-space.js",
     "db:check:supabase:test": "node scripts/check-supabase-test.js",
     "db:clean:supabase:test": "node scripts/clean-supabase-test-data.js",
+    "db:test:outbox:supabase": "node scripts/test-supabase-outbox.js",
     "start:supabase:test": "node scripts/start-supabase-test.js",
     "test:supabase:test": "node scripts/test-supabase-test.js",
     "db:provision:supabase:main": "node scripts/provision-supabase-backend-role.js",

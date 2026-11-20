@@ -10,6 +10,7 @@ function createRequestAuthorization({ orderOwnershipPort = null } = {}) {
       const owned = await orderOwnershipPort.isOrderOwnedBy({
         orderId: req.params.orderId ?? req.body.orderId,
         buyerSubject: req.auth.subject,
+        accessToken: req.auth.accessToken,
       });
       return owned ? next() : res.status(403).json({ error: 'No tienes acceso a este pedido' });
     } catch {
@@ -24,6 +25,7 @@ function createRequestAuthorization({ orderOwnershipPort = null } = {}) {
       const owned = await orderOwnershipPort.isTransactionOwnedBy({
         transactionId: req.params.transactionId,
         buyerSubject: req.auth.subject,
+        accessToken: req.auth.accessToken,
       });
       return owned ? next() : res.status(403).json({ error: 'No tienes acceso a esta transacción' });
     } catch {

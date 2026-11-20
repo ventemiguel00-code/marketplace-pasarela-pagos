@@ -9,6 +9,7 @@ async function main() {
   try {
     // TRUNCATE requiere ser propietario. DELETE respeta el rol limitado y la
     // política RLS del esquema de pruebas, sin pedir privilegios adicionales.
+    await pool.query('DELETE FROM integration_outbox');
     await pool.query('DELETE FROM payment_transactions');
     console.log('Datos temporales del esquema pagos_test eliminados.');
   } finally {

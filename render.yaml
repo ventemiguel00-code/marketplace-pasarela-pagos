@@ -19,6 +19,27 @@ services:
         value: staging-blocked-audience-not-official
       - key: AUTH_JWT_JWKS_URL
         value: https://xmrlazemifmepyahqsrz.supabase.co/auth/v1/.well-known/jwks.json
+      - key: ORDERS_INTEGRATION_ENABLED
+        value: "true"
+      - key: ORDERS_BASE_URL
+        value: https://ordenes-thaliana.onrender.com
+      - key: INTEGRATION_OUTBOX_ENABLED
+        value: "true"
+      # Las escrituras reales siguen bloqueadas hasta una prueba coordinada y autorizada.
+      - key: PAYMENT_INTEGRATIONS_WRITE_ENABLED
+        value: "false"
+      - key: ORDERS_APPROVED_STATUS
+        value: CONFIRMADA
+      - key: ACCOUNTING_BASE_URL
+        value: https://marketplace-usc-contabilidad.onrender.com
+      - key: NOTIFICATIONS_BASE_URL
+        value: https://marketplace-usc-notificaciones.onrender.com
+      - key: INVENTORY_BASE_URL
+        value: https://marketplace-equipo4.onrender.com
+      - key: TRACKING_BASE_URL
+        value: https://marketplace-usc-seguimiento.onrender.com
+      - key: INVENTORY_CONFIRMATION_BY_PAYMENTS
+        value: "false"
       # Deben cargarse en Render como secretos; no van en Git.
       - key: SUPABASE_PGHOST
         sync: false

@@ -69,7 +69,7 @@ function createApp(
   });
 
   app.get('/api/payments/summary/:orderId', authenticateBuyer, requestAuthorization.authorizeOrder, async (req, res) => {
-    const summary = await getPaymentSummary(req.params.orderId);
+    const summary = await getPaymentSummary(req.params.orderId, req.auth ?? {});
     if (!summary) {
       return res.status(404).json({ error: 'Orden no encontrada' });
     }
@@ -83,7 +83,7 @@ function createApp(
 
   app.get('/api/payments/reservations/quote/:orderId', authenticateBuyer, requestAuthorization.authorizeOrder, async (req, res, next) => {
     try {
-      const quote = await getReservationQuote(req.params.orderId);
+      const quote = await getReservationQuote(req.params.orderId, req.auth ?? {});
       res.json(quote);
     } catch (error) {
       if (error.code === 'ORDER_NOT_FOUND') {
@@ -101,6 +101,7 @@ function createApp(
       const transaction = await processPayment({
         ...req.body,
         idempotencyKey: req.get('Idempotency-Key') ?? req.body.idempotencyKey,
+        authContext: req.auth ?? {},
       });
       res.status(transaction.isIdempotentReplay ? 200 : 201).json(
         toTransactionResponse(transaction),
@@ -137,6 +138,7 @@ function createApp(
         methodId: req.body.methodId,
         idempotencyKey: req.get('Idempotency-Key') ?? req.body.idempotencyKey,
         purpose: 'reservation',
+        authContext: req.auth ?? {},
       });
       res.status(transaction.isIdempotentReplay ? 200 : 201).json({
         transactionId: transaction.transactionId,

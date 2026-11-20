@@ -8,6 +8,7 @@ async function main() {
   const pool = createPool();
   try {
     const current = await pool.query('SELECT current_user, current_schema(), COUNT(*)::int AS test_rows FROM payment_transactions');
+    const outbox = await pool.query('SELECT COUNT(*)::int AS outbox_rows FROM integration_outbox');
     let historicalAccessBlocked = false;
     try {
       await pool.query('SELECT COUNT(*) FROM public.payment_transactions');
@@ -15,7 +16,7 @@ async function main() {
       historicalAccessBlocked = error.code === '42501';
     }
     if (!historicalAccessBlocked) throw new Error('El rol de pruebas puede acceder a la tabla histórica.');
-    console.log(JSON.stringify({ ...current.rows[0], historicalAccessBlocked }, null, 2));
+    console.log(JSON.stringify({ ...current.rows[0], ...outbox.rows[0], historicalAccessBlocked }, null, 2));
   } finally {
     await pool.end();
   }
