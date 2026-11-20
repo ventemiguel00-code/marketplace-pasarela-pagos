@@ -3,7 +3,7 @@ const openApiDocument = {
   info: {
     title: 'Marketplace USC - Pasarela de Pagos',
     version: '1.0.0',
-    description: 'Los pagos son simulados. Las integraciones con Órdenes, Contabilidad y Notificaciones todavía no son operativas.',
+    description: 'Los pagos son simulados. El Login Central y la lectura/autorización con Órdenes están habilitados en STAGING. Las escrituras hacia Contabilidad, Notificaciones, Inventario y Seguimiento permanecen desactivadas hasta validar sus contratos operativos.',
   },
   servers: [{ url: '/' }],
   components: {
@@ -15,7 +15,11 @@ const openApiDocument = {
       PaymentRequest: {
         type: 'object', required: ['orderId', 'methodId'],
         properties: {
-          orderId: { type: 'string', example: 'ORD-00125' },
+          orderId: {
+            type: 'string',
+            description: 'UUID de Órdenes en integración; los identificadores ORD se conservan solo en la demostración local.',
+            example: '2fef7d40-5e9f-4ccd-bde1-1f2a3db5a111',
+          },
           methodId: { type: 'string', enum: ['pse', 'qr', 'cod'], example: 'pse' },
           advanceMethodId: { type: 'string', enum: ['pse', 'qr'] },
         },
