@@ -87,6 +87,7 @@ after(async () => {
 test('GET /health responde 200 y JSON sin necesitar PostgreSQL', async () => {
   const response = await fetch(`${baseUrl}/health`);
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get('x-application-revision'), 'local');
   assert.match(response.headers.get('content-type'), /application\/json/);
   assert.deepEqual(await response.json(), { status: 'ok', module: 'payments' });
 });

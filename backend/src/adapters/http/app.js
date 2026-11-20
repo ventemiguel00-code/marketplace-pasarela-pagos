@@ -65,6 +65,7 @@ function createApp(
 
   // Comprobación técnica: no consulta PostgreSQL ni procesa pagos.
   app.get('/health', (req, res) => {
+    res.set('X-Application-Revision', process.env.RENDER_GIT_COMMIT || 'local');
     res.json({ status: 'ok', module: 'payments' });
   });
 
