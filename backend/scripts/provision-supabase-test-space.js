@@ -20,11 +20,13 @@ async function main() {
   const existingTestEnvironment = fs.existsSync(testEnvironmentPath)
     ? dotenv.parse(fs.readFileSync(testEnvironmentPath, 'utf8'))
     : {};
+  const rotateTestPassword = process.env.ROTATE_SUPABASE_TEST_PASSWORD === 'true';
   // Reaprovisionar migraciones no debe rotar silenciosamente la credencial que
   // usa STAGING. Solo se genera una clave durante la primera preparación.
   const hasExistingTestPassword = Boolean(existingTestEnvironment.SUPABASE_PGPASSWORD);
-  const testPassword = existingTestEnvironment.SUPABASE_PGPASSWORD
-    || crypto.randomBytes(32).toString('base64url');
+  const testPassword = !rotateTestPassword && existingTestEnvironment.SUPABASE_PGPASSWORD
+    ? existingTestEnvironment.SUPABASE_PGPASSWORD
+    : crypto.randomBytes(32).toString('base64url');
   // El Session Pooler de Supabase identifica el proyecto con el sufijo del
   // usuario (rol.project-ref). Conservamos ese sufijo para el rol de pruebas.
   const sourceUser = process.env.SUPABASE_PGUSER;
@@ -34,7 +36,7 @@ async function main() {
   try {
     await pool.query(fs.readFileSync(migrationPath, 'utf8'));
     await pool.query(fs.readFileSync(outboxMigrationPath, 'utf8'));
-    if (!hasExistingTestPassword) {
+    if (!hasExistingTestPassword || rotateTestPassword) {
       await pool.query(`ALTER ROLE pagos_test_runner LOGIN PASSWORD '${testPassword}'`);
     }
 
