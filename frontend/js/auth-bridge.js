@@ -11,6 +11,5 @@
     return token ? { ...headers, Authorization: `Bearer ${token}` } : { ...headers };
   }
 
-  // Login podrá inyectar MarketplaceAuth.getAccessToken sin guardar tokens aquí.
-  root.MarketplaceAuthBridge = { withAuthHeaders };
+  root.MarketplaceAuthBridge = { getAccessToken, withAuthHeaders };
 }(window));

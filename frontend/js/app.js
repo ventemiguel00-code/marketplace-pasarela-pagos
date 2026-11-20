@@ -1,4 +1,4 @@
-const currentOrderId = new URLSearchParams(window.location.search).get('orderId') ?? 'ORD-00125';
+let currentOrderId = new URLSearchParams(window.location.search).get('orderId');
 let selectedMethodId = null;
 let currentAttemptKey = null;
 let retryMode = false;
@@ -16,10 +16,15 @@ let purchaseType = 'full';
 let codAdvanceQuote = null;
 let codAdvanceMethodId = null;
 let codAdvanceQuoteLoading = false;
+let methodsLoaded = false;
 
 async function apiFetch(url, options = {}) {
   const headers = await window.MarketplaceAuthBridge.withAuthHeaders(options.headers);
-  return fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401 && window.MarketplaceAuth.getState().required) {
+    window.MarketplaceAuth.invalidate();
+  }
+  return response;
 }
 
 function createAttemptKey() {
@@ -53,7 +58,6 @@ function formatCop(value) {
 async function loadSummary() {
   const message = document.getElementById('summary-status');
   const summaryElement = document.getElementById('purchase-summary');
-  // La demo abre ORD-00125; el parámetro permite consultar otra orden preparada.
   summaryElement.hidden = true;
   try {
     const response = await apiFetch(`/api/payments/summary/${encodeURIComponent(currentOrderId)}`, {
@@ -61,6 +65,18 @@ async function loadSummary() {
     });
     if (response.status === 404) {
       message.textContent = 'Orden no encontrada. No hay un resumen disponible para esta compra.';
+      return;
+    }
+    if (response.status === 403) {
+      message.textContent = 'Este pedido no pertenece a tu cuenta o no tienes autorización para verlo.';
+      return;
+    }
+    if (response.status === 503) {
+      message.textContent = 'El servicio de pedidos no está disponible temporalmente. Intenta más tarde.';
+      return;
+    }
+    if (response.status === 401) {
+      message.textContent = 'Tu sesión venció. Inicia sesión nuevamente.';
       return;
     }
     if (!response.ok) throw new Error('No se pudo consultar el resumen.');
@@ -79,8 +95,6 @@ async function loadSummary() {
     message.textContent = 'No se pudo cargar el resumen. Comprueba que el backend esté disponible.';
   }
 }
-
-loadSummary();
 
 function setPurchaseTypeControlsDisabled(disabled) {
   document.querySelectorAll('input[name="purchase-type"]').forEach((input) => {
@@ -346,6 +360,7 @@ document.querySelectorAll('input[name="cod-advance-method"]').forEach((input) =>
 });
 
 async function loadPaymentMethods() {
+  if (methodsLoaded) return;
   const message = document.getElementById('methods-status');
   const fieldset = document.getElementById('payment-methods');
   const options = document.getElementById('payment-method-options');
@@ -398,13 +413,12 @@ async function loadPaymentMethods() {
 
     message.textContent = '';
     fieldset.hidden = false;
+    methodsLoaded = true;
   } catch {
     message.textContent = 'No se pudieron cargar los métodos de pago disponibles.';
     selectionStatus.textContent = '';
   }
 }
-
-loadPaymentMethods();
 
 document.getElementById('new-customer-demo').addEventListener('change', (event) => {
   isNewCustomerDemo = event.target.checked;
@@ -843,7 +857,95 @@ if (!lastTransactionId) {
   }
 }
 
-if (lastTransactionId) {
-  document.getElementById('status-transaction-id').value = lastTransactionId;
-  queryPaymentStatus(lastTransactionId);
+
+function setAuthenticationPresentation(state) {
+  const statusElement = document.getElementById('auth-status');
+  const loginForm = document.getElementById('central-login-form');
+  const authenticatedSession = document.getElementById('authenticated-session');
+  const paymentContent = document.getElementById('payment-content');
+  statusElement.className = `auth-status ${state.status}`;
+  loginForm.hidden = true;
+  authenticatedSession.hidden = true;
+
+  if (state.status === 'checking') {
+    statusElement.textContent = 'Comprobando tu sesión…';
+    paymentContent.hidden = true;
+    return;
+  }
+  if (state.status === 'anonymous') {
+    statusElement.textContent = 'Inicia sesión con tu cuenta existente del Marketplace USC.';
+    loginForm.hidden = false;
+    paymentContent.hidden = true;
+    return;
+  }
+  if (state.status === 'expired') {
+    statusElement.textContent = 'Tu sesión venció. Inicia sesión nuevamente.';
+    loginForm.hidden = false;
+    paymentContent.hidden = true;
+    return;
+  }
+  if (state.status === 'unavailable') {
+    statusElement.textContent = 'La autenticación no está disponible temporalmente.';
+    paymentContent.hidden = true;
+    return;
+  }
+  if (state.status === 'local') {
+    statusElement.textContent = 'Modo local de demostración. La autenticación central está desactivada.';
+    paymentContent.hidden = false;
+    return;
+  }
+  if (state.status === 'authenticated') {
+    statusElement.textContent = 'Sesión central válida.';
+    document.getElementById('authenticated-user').textContent = state.email || 'Comprador autenticado';
+    authenticatedSession.hidden = false;
+    paymentContent.hidden = !(currentOrderId || lastTransactionId);
+    if (!currentOrderId && !lastTransactionId) {
+      statusElement.textContent = 'Sesión válida. Abre la pasarela desde un pedido del Marketplace.';
+    }
+  }
 }
+
+async function startPaymentFlow(state) {
+  setAuthenticationPresentation(state);
+  if (state.status === 'local' && !currentOrderId) currentOrderId = 'ORD-00125';
+  if (state.status !== 'local' && state.status !== 'authenticated') return;
+  if (!currentOrderId && !lastTransactionId) return;
+  await loadPaymentMethods();
+  if (currentOrderId) await loadSummary();
+  else document.getElementById('summary-status').textContent = 'No se recibió un pedido para mostrar.';
+  if (lastTransactionId) {
+    document.getElementById('status-transaction-id').value = lastTransactionId;
+    await queryPaymentStatus(lastTransactionId);
+  }
+}
+
+window.MarketplaceAuth.subscribe(setAuthenticationPresentation);
+
+document.getElementById('central-login-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    const state = await window.MarketplaceAuth.login(
+      document.getElementById('login-email').value.trim(),
+      document.getElementById('login-password').value,
+    );
+    document.getElementById('login-password').value = '';
+    await startPaymentFlow(state);
+  } catch {
+    const statusElement = document.getElementById('auth-status');
+    statusElement.className = 'auth-status anonymous';
+    statusElement.textContent = 'No fue posible iniciar sesión. Verifica tus datos e intenta nuevamente.';
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+document.getElementById('logout-session').addEventListener('click', async () => {
+  await window.MarketplaceAuth.logout();
+  currentSummary = null;
+  document.getElementById('purchase-summary').hidden = true;
+});
+
+window.MarketplaceAuth.initialize().then(startPaymentFlow);

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/css/styles.css">
   <script src="/js/payment-result.js" defer></script>
   <script src="/js/support-contact.js" defer></script>
+  <script src="/js/marketplace-auth.js" defer></script>
   <script src="/js/auth-bridge.js" defer></script>
   <script src="/js/app.js" defer></script>
 </head>
@@ -17,6 +18,28 @@
       <h1>Finaliza tu compra</h1>
       <p class="page-description">Revisa tu pedido y elige cómo realizar el pago.</p>
     </header>
+    <section id="auth-card" class="card auth-card" aria-labelledby="auth-title">
+      <p class="section-kicker">SESIÓN SEGURA</p>
+      <h2 id="auth-title">Acceso del Marketplace USC</h2>
+      <p id="auth-status" class="auth-status checking" role="status" aria-live="polite">
+        Comprobando tu sesión…
+      </p>
+      <form id="central-login-form" class="central-login-form" hidden>
+        <p class="section-description">
+          Usa tu cuenta existente del Marketplace. Esta pasarela no crea usuarios nuevos.
+        </p>
+        <label for="login-email">Correo</label>
+        <input id="login-email" name="email" type="email" autocomplete="username" required>
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Iniciar sesión</button>
+      </form>
+      <div id="authenticated-session" class="authenticated-session" hidden>
+        <span id="authenticated-user"></span>
+        <button id="logout-session" type="button" class="secondary-button">Cerrar sesión</button>
+      </div>
+    </section>
+    <div id="payment-content" hidden>
     <section class="card" aria-labelledby="summary-title">
       <div class="section-heading">
         <div>
@@ -234,6 +257,7 @@
         </a>
       </p>
     </section>
+    </div>
     <noscript>Activa JavaScript para consultar el resumen y los métodos disponibles.</noscript>
   </main>
 </body>

@@ -97,6 +97,13 @@ const app = createApp(
     authenticateBuyer,
     requestAuthorization,
     corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN || null,
+    publicAuthentication: {
+      required: process.env.AUTH_JWT_REQUIRED === 'true',
+      url: process.env.AUTH_PUBLIC_URL || null,
+      publishableKey: process.env.AUTH_PUBLIC_PUBLISHABLE_KEY || null,
+      issuer: process.env.AUTH_JWT_ISSUER || null,
+      audience: process.env.AUTH_JWT_AUDIENCE || null,
+    },
   },
 );
 

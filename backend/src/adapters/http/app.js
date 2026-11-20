@@ -69,6 +69,13 @@ function createApp(
     res.json({ status: 'ok', module: 'payments' });
   });
 
+  app.get('/api/public-config', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      authentication: options.publicAuthentication ?? { required: false },
+    });
+  });
+
   app.get('/api/payments/summary/:orderId', authenticateBuyer, requestAuthorization.authorizeOrder, async (req, res) => {
     const summary = await getPaymentSummary(req.params.orderId, req.auth ?? {});
     if (!summary) {
